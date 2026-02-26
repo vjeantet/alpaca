@@ -1,12 +1,12 @@
-# Alpaca
+# Alpaca Proxy
 
 ![Alpaca Logo](assets/alpaca-small.png)
 
-![Latest Tag][2] ![GitHub Workflow Status][3] ![GitHub Releases][4]
+![Latest Tag][2]
 
 Alpaca is a local HTTP proxy for command-line tools. It supports proxy
-auto-configuration (PAC) files and NTLM authentication.
-![alt text](assets/alpaca-banner.png)
+auto-configuration (PAC) files, NTLM authentication, Kerberos, Basic Auth.
+
 
 ## Install using Homebrew
 
@@ -14,11 +14,16 @@ If you're using macOS and use [Homebrew](https://brew.sh/), you can install
 using:
 
 ```sh
-$ brew tap vjeantet/tap
 $ brew install vjeantet/tap/alpaca-proxy
 ```
 
 Launch Alpaca by running `alpaca`, or by using `brew services start alpaca`.
+
+
+## Download Binary
+
+Alpaca can be downloaded from the [GitHub releases page][1].
+
 
 ## Install using Go
 
@@ -44,13 +49,7 @@ To run the tests:
 $ CGO_ENABLED=1 go test ./...
 ```
 
-## Download Binary
 
-Alpaca can be downloaded from the [GitHub releases page][1].
-
-## Install from distribution packages
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/alpaca-proxy.svg)](https://repology.org/project/alpaca-proxy/versions)
 
 ## Usage
 
@@ -67,6 +66,12 @@ Multiple authentication methods can be enabled simultaneously. The multi-authent
 tries each method in order (Kerberos, Basic, NTLM) and caches which method works per proxy.
 
 Otherwise, the authentication with proxy will be simply ignored.
+
+
+### Run with Kerberos and a local proxy pac 
+```sh
+$ alpaca -C file:///Users/xxxxx/proxy.pac -l 127.0.0.1 -p 9999 -k -w 300 -b uid:passwd -q
+```
 
 ### Shell Prompt
 
