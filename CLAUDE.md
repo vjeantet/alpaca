@@ -11,7 +11,7 @@ Alpaca is a local HTTP proxy for command-line tools written in Go. It supports:
 - System keyring integration (macOS, Windows, Linux/GNOME)
 - Automatic network switching (bypasses unreachable proxies)
 
-**Module path:** `github.com/samuong/alpaca/v2`
+**Module path:** `github.com/vjeantet/alpaca/v2`
 **License:** Apache 2.0
 
 ## Quick Reference

@@ -1,4 +1,4 @@
-module github.com/samuong/alpaca/v2
+module github.com/vjeantet/alpaca/v2
 
 go 1.22.3
 

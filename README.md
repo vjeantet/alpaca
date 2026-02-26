@@ -14,8 +14,8 @@ If you're using macOS and use [Homebrew](https://brew.sh/), you can install
 using:
 
 ```sh
-$ brew tap samuong/alpaca
-$ brew install samuong/alpaca/alpaca
+$ brew tap vjeantet/tap
+$ brew install vjeantet/tap/alpaca-proxy
 ```
 
 Launch Alpaca by running `alpaca`, or by using `brew services start alpaca`.
@@ -26,7 +26,7 @@ If you've got the [Go](https://golang.org/cmd/go/) tool installed, you can
 install using:
 
 ```sh
-$ go install github.com/samuong/alpaca/v2@latest
+$ go install github.com/vjeantet/alpaca/v2@latest
 ```
 
 ## Build from source
@@ -148,7 +148,7 @@ will require setting the `http_proxy` and `https_proxy` environment variables:
 ```sh
 $ export http_proxy=http://localhost:3128
 $ export https_proxy=http://localhost:3128
-$ curl -s https://raw.githubusercontent.com/samuong/alpaca/master/README.md
+$ curl -s https://raw.githubusercontent.com/vjeantet/alpaca/master/README.md
 # Alpaca
 ...
 ```
@@ -159,7 +159,7 @@ When this happens, Alpaca will temporarily bypass the parent proxy and send
 requests directly, so there's no need to manually unset/re-set `http_proxy` and
 `https_proxy` as you move between networks.
 
-[1]: https://github.com/samuong/alpaca/releases
-[2]: https://img.shields.io/github/v/tag/samuong/alpaca.svg?logo=github&label=latest
-[3]: https://img.shields.io/github/actions/workflow/status/samuong/alpaca/ci.yml?branch=master
-[4]: https://img.shields.io/github/downloads/samuong/alpaca/latest/total
+[1]: https://github.com/vjeantet/alpaca/releases
+[2]: https://img.shields.io/github/v/tag/vjeantet/alpaca.svg?logo=github&label=latest
+[3]: https://img.shields.io/github/actions/workflow/status/vjeantet/alpaca/ci.yml?branch=master
+[4]: https://img.shields.io/github/downloads/vjeantet/alpaca/latest/total
