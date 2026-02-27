@@ -65,6 +65,7 @@ func main() {
 	kerberos := flag.Bool("k", false, "enable Kerberos/Negotiate proxy authentication (macOS only)")
 	kerberosWait := flag.Int("w", 30, "seconds to wait for a Kerberos ticket (macOS only)")
 	quiet := flag.Bool("q", false, "quiet mode, suppress all log output")
+	jsonLogs := flag.Bool("json-logs", false, "emit JSON log lines on stdout")
 	version := flag.Bool("version", false, "print version number")
 	flag.Parse()
 
@@ -137,7 +138,10 @@ func main() {
 
 	errch := make(chan error)
 
-	s := createServer(*port, *pacurl, auth)
+	s, err := createServer(*port, *pacurl, auth, *jsonLogs)
+	if err != nil {
+		log.Fatal(err)
+	}
 	for _, host := range hosts {
 		address := net.JoinHostPort(host, strconv.Itoa(*port))
 		for _, network := range networks(host) {
@@ -156,17 +160,26 @@ func main() {
 	log.Fatal(<-errch)
 }
 
-func createServer(port int, pacurl string, auth proxyAuthenticator) *http.Server {
+func createServer(
+	port int, pacurl string, auth proxyAuthenticator, jsonLogs bool,
+) (*http.Server, error) {
 	pacWrapper := NewPACWrapper(PACData{Port: port})
-	proxyFinder := NewProxyFinder(pacurl, pacWrapper)
+	proxyFinder, err := NewProxyFinder(pacurl, pacWrapper)
+	if err != nil {
+		return nil, err
+	}
 	proxyHandler := NewProxyHandler(auth, getProxyFromContext, proxyFinder.blockProxy)
 	mux := http.NewServeMux()
 	pacWrapper.SetupHandlers(mux)
 
 	// build the handler by wrapping middleware upon middleware
 	var handler http.Handler = mux
-	handler = RequestLogger(handler)
 	handler = proxyHandler.WrapHandler(handler)
+	if jsonLogs {
+		handler = RequestLoggerJSON(handler)
+	} else {
+		handler = RequestLogger(handler)
+	}
 	handler = proxyFinder.WrapHandler(handler)
 	handler = AddContextID(handler)
 
@@ -175,7 +188,7 @@ func createServer(port int, pacurl string, auth proxyAuthenticator) *http.Server
 		// TODO: Implement HTTP/2 support. In the meantime, set TLSNextProto to a non-nil
 		// value to disable HTTP/2.
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
-	}
+	}, nil
 }
 
 func networks(hostname string) []string {

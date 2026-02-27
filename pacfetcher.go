@@ -40,15 +40,11 @@ const maxDataURLLength = 512 * 1024 * 1024
 var delayAfterFailedDownload = 2 * time.Second
 
 type pacFetcher struct {
-	pacFinder *pacFinder
-	monitor   netMonitor
-	client    *http.Client
-	connected bool
-	//cache  []byte
-	//modified time.Time
-	//fetched time.Time
-	//expiry   time.Time
-	//etag     string
+	pacFinder      *pacFinder
+	monitor        netMonitor
+	client         *http.Client
+	connected      bool
+	pacURLResolved bool
 }
 
 func newPACFetcher(pacurl string) *pacFetcher {
@@ -142,6 +138,7 @@ func (pf *pacFetcher) download() []byte {
 		log.Println("No PAC URL specified or detected; all requests will be made directly")
 		return nil
 	}
+	pf.pacURLResolved = true
 
 	log.Printf("Attempting to download PAC from %s", pacurl)
 
@@ -185,4 +182,8 @@ func (pf *pacFetcher) download() []byte {
 
 func (pf *pacFetcher) isConnected() bool {
 	return pf.connected
+}
+
+func (pf *pacFetcher) hasPACURL() bool {
+	return pf.pacURLResolved
 }

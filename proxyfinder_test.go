@@ -50,7 +50,8 @@ func TestFindProxyForRequest(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(pacjsHandler(js)))
 			defer server.Close()
 			pw := NewPACWrapper(PACData{Port: 1})
-			pf := NewProxyFinder(server.URL, pw)
+			pf, err := NewProxyFinder(server.URL, pw)
+			require.NoError(t, err)
 			req := httptest.NewRequest(http.MethodGet, "https://www.test", nil)
 			ctx := context.WithValue(req.Context(), contextKeyID, i)
 			req = req.WithContext(ctx)
@@ -70,14 +71,12 @@ func TestFindProxyForRequest(t *testing.T) {
 	}
 }
 
-func TestFallbackToDirectWhenNotConnected(t *testing.T) {
+func TestErrorWhenPACUnreachable(t *testing.T) {
 	url := "http://pacserver.invalid/nonexistent.pac"
 	pw := NewPACWrapper(PACData{Port: 1})
-	pf := NewProxyFinder(url, pw)
-	req := httptest.NewRequest(http.MethodGet, "http://www.test", nil)
-	proxy, err := pf.findProxyForRequest(req)
-	require.NoError(t, err)
-	assert.Nil(t, proxy)
+	_, err := NewProxyFinder(url, pw)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PAC URL was configured but could not be downloaded")
 }
 
 // Removed TestFallbackToDirectWhenNoPACURL - behaviour is fallback to system default when no PACURL, test case TestFallbackToDefaultWhenNoPACUrl
@@ -87,7 +86,8 @@ func TestSkipBadProxies(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(pacjsHandler(js)))
 	defer server.Close()
 	pw := NewPACWrapper(PACData{Port: 1})
-	pf := NewProxyFinder(server.URL, pw)
+	pf, err := NewProxyFinder(server.URL, pw)
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodGet, "https://www.test", nil)
 	ctx := context.WithValue(req.Context(), contextKeyID, 0)
 	req = req.WithContext(ctx)
@@ -102,4 +102,44 @@ func TestSkipBadProxies(t *testing.T) {
 	proxy, err = pf.findProxyForRequest(req)
 	require.NoError(t, err)
 	assert.Equal(t, "primary:80", proxy.Host)
+}
+
+type testNetMonitor struct {
+	changed bool
+}
+
+func (m *testNetMonitor) addrsChanged() bool {
+	return m.changed
+}
+
+func TestCachedPACUsedWhenServerDown(t *testing.T) {
+	js := `function FindProxyForURL(url, host) { return "PROXY cached.test:8080" }`
+	server := httptest.NewServer(http.HandlerFunc(pacjsHandler(js)))
+	pw := NewPACWrapper(PACData{Port: 1})
+	pf, err := NewProxyFinder(server.URL, pw)
+	require.NoError(t, err)
+
+	// Verify PAC works while server is up
+	req := httptest.NewRequest(http.MethodGet, "https://www.test", nil)
+	ctx := context.WithValue(req.Context(), contextKeyID, 0)
+	req = req.WithContext(ctx)
+	proxy, err := pf.findProxyForRequest(req)
+	require.NoError(t, err)
+	require.NotNil(t, proxy)
+	assert.Equal(t, "cached.test:8080", proxy.Host)
+
+	// Shut down the PAC server
+	server.Close()
+
+	// Force a network change so download() actually runs
+	pf.fetcher.monitor = &testNetMonitor{changed: true}
+
+	// Trigger an update - should use cached PAC
+	pf.checkForUpdates()
+
+	// Requests should still use the cached PAC
+	proxy, err = pf.findProxyForRequest(req)
+	require.NoError(t, err)
+	require.NotNil(t, proxy)
+	assert.Equal(t, "cached.test:8080", proxy.Host)
 }

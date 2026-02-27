@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -36,19 +37,23 @@ func getProxyFromContext(req *http.Request) (*url.URL, error) {
 }
 
 type ProxyFinder struct {
-	runner  *PACRunner
-	fetcher *pacFetcher
-	wrapper *PACWrapper
-	blocked *blocklist
+	runner      *PACRunner
+	fetcher     *pacFetcher
+	wrapper     *PACWrapper
+	blocked     *blocklist
+	hasValidPAC bool
 	sync.Mutex
 }
 
-func NewProxyFinder(pacurl string, wrapper *PACWrapper) *ProxyFinder {
+func NewProxyFinder(pacurl string, wrapper *PACWrapper) (*ProxyFinder, error) {
 	pf := &ProxyFinder{wrapper: wrapper, blocked: newBlocklist()}
 	pf.runner = new(PACRunner)
 	pf.fetcher = newPACFetcher(pacurl)
 	pf.checkForUpdates()
-	return pf
+	if pf.fetcher.hasPACURL() && !pf.fetcher.isConnected() {
+		return nil, fmt.Errorf("PAC URL was configured but could not be downloaded")
+	}
+	return pf, nil
 }
 
 func (pf *ProxyFinder) WrapHandler(next http.Handler) http.Handler {
@@ -75,7 +80,11 @@ func (pf *ProxyFinder) checkForUpdates() {
 	if pacjs == nil {
 		if !pf.fetcher.isConnected() {
 			pf.blocked = newBlocklist()
-			pf.wrapper.Wrap(nil)
+			if !pf.hasValidPAC {
+				pf.wrapper.Wrap(nil)
+			} else {
+				log.Println("PAC server unreachable, using cached PAC")
+			}
 		}
 		return
 	}
@@ -83,6 +92,7 @@ func (pf *ProxyFinder) checkForUpdates() {
 	if err := pf.runner.Update(pacjs); err != nil {
 		log.Printf("Error running PAC JS: %q", err)
 	} else {
+		pf.hasValidPAC = true
 		pf.wrapper.Wrap(pacjs)
 	}
 }
@@ -93,7 +103,7 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 		log.Printf(`[%d] %s %s via "DIRECT"`, id, req.Method, req.URL)
 		return nil, nil
 	}
-	if !pf.fetcher.isConnected() {
+	if !pf.fetcher.isConnected() && !pf.hasValidPAC {
 		log.Printf(`[%d] %s %s via "DIRECT" (not connected to PAC server)`,
 			id, req.Method, req.URL)
 		return nil, nil
