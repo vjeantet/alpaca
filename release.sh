@@ -219,6 +219,13 @@ class AlpacaProxy < Formula
     bin.install binary_name => "alpaca"
   end
 
+  service do
+    run [opt_bin/"alpaca"]
+    keep_alive true
+    log_path var/"log/alpaca-proxy.log"
+    error_log_path var/"log/alpaca-proxy.log"
+  end
+
   test do
     assert_match version.to_s, shell_output("#{bin}/alpaca -version")
   end

@@ -17,7 +17,7 @@ using:
 $ brew install vjeantet/tap/alpaca-proxy
 ```
 
-Launch Alpaca by running `alpaca`, or by using `brew services start alpaca`.
+Launch Alpaca by running `alpaca`, or by using `brew services start alpaca-proxy`.
 
 
 ## Download Binary
