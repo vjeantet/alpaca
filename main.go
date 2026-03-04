@@ -67,11 +67,27 @@ func main() {
 	quiet := flag.Bool("q", false, "quiet mode, suppress all log output")
 	jsonLogs := flag.Bool("json-logs", false, "emit JSON log lines on stdout")
 	version := flag.Bool("version", false, "print version number")
+	configPath := flag.String("c", "", "path to YAML config file")
 	flag.Parse()
+
+	explicit := explicitlySetFlags()
+	cfgPath := *configPath
+	if cfgPath == "" {
+		if p, err := defaultConfigPath(); err == nil {
+			cfgPath = p
+		}
+	}
+	cfg, err := loadConfig(cfgPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	applyConfig(cfg, explicit, &hosts, port, pacurl, domain, username,
+		kerberos, kerberosWait, quiet, jsonLogs)
 
 	if *quiet {
 		log.SetOutput(io.Discard)
 	}
+	logConfigSources(cfg, explicit, cfgPath)
 
 	// default to localhost if no hosts are specified
 	if len(hosts) == 0 {

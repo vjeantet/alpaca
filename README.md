@@ -127,10 +127,37 @@ On macOS and Linux/GNOME systems, Alpaca uses the PAC URL from your system setti
 If you'd like to override this, or if Alpaca fails to detect your settings, you
 can set this manually using the `-C` flag.
 
+### Configuration file
+
+Alpaca can load settings from a YAML configuration file. By default, it looks for `~/.config/alpaca/config.yaml`. You can specify a different path with the `-c` flag.
+
+CLI flags always take priority over config file values.
+
+Example config file:
+
+```yaml
+listen:
+  - 127.0.0.1
+  - "::1"
+port: 9090
+pac-url: http://example.com/proxy.pac
+domain: CORP
+username: jdoe
+kerberos: true
+kerberos-wait: 60
+quiet: false
+json-logs: true
+```
+
+Available config keys: `listen`, `port`, `pac-url`, `domain`, `username`, `kerberos`, `kerberos-wait`, `quiet`, `json-logs`.
+
+For security reasons, passwords and basic credentials cannot be stored in the config file. Use CLI flags (`-b`), environment variables, or the system keyring instead.
+
 ### Command-line flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `-c` | (none) | Path to YAML config file |
 | `-l` | `localhost` | Address to listen on (can be specified multiple times) |
 | `-p` | `3128` | Port number to listen on |
 | `-C` | (none) | URL of proxy auto-config (PAC) file |
