@@ -168,6 +168,7 @@ For security reasons, passwords and basic credentials cannot be stored in the co
 | `-k` | `false` | Enable Kerberos/Negotiate proxy authentication (macOS only) |
 | `-w` | `30` | Seconds to wait for a Kerberos ticket (macOS only) |
 | `-q` | `false` | Quiet mode, suppress all log output |
+| `-json-logs` | `false` | Emit JSON log lines on stdout |
 | `-version` | `false` | Print version and exit |
 
 ---
