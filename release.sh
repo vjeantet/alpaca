@@ -255,6 +255,7 @@ README
 
     git -C "${HOMEBREW_TAP_DIR}" add -A
     git -C "${HOMEBREW_TAP_DIR}" commit -m "Update alpaca-proxy to ${version_no_v}"
+    git -C "${HOMEBREW_TAP_DIR}" pull --rebase
     git -C "${HOMEBREW_TAP_DIR}" push
     success "Homebrew formula pushed."
 }
