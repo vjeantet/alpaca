@@ -56,7 +56,7 @@ func main() {
 
 	var hosts stringArrayFlag
 	flag.Var(&hosts, "l", "address to listen on")
-	port := flag.Int("p", 3128, "port number to listen on")
+	port := flag.Int("p", 8079, "port number to listen on")
 	pacurl := flag.String("C", "", "url of proxy auto-config (pac) file")
 	domain := flag.String("d", "", "domain of the proxy account (for NTLM auth)")
 	username := flag.String("u", whoAmI(), "username for proxy auth (NTLM)")
