@@ -47,6 +47,55 @@ func defaultConfigPath() (string, error) {
 	return filepath.Join(home, ".config", "alpaca", "config.yaml"), nil
 }
 
+const defaultConfigContent = `# Alpaca proxy configuration
+# See https://github.com/vjeantet/alpaca for documentation.
+#
+# CLI flags always override values set here.
+# "password" and "basic-credentials" are not allowed in this file
+# for security reasons.
+
+# Address(es) to listen on (default: localhost)
+# listen:
+#   - localhost
+
+# Port to listen on (default: 8079)
+# port: 8079
+
+# URL of the proxy auto-config (PAC) file
+# pac-url: ""
+
+# Domain for NTLM proxy authentication
+# domain: ""
+
+# Username for NTLM proxy authentication (default: current user)
+# username: ""
+
+# Enable Kerberos/Negotiate proxy authentication (macOS only)
+# kerberos: false
+
+# Seconds to wait for a Kerberos ticket (macOS only, default: 30)
+# kerberos-wait: 30
+
+# Suppress all log output
+# quiet: false
+
+# Emit JSON log lines on stdout
+# json-logs: false
+`
+
+func createDefaultConfig(path string) (bool, error) {
+	if _, err := os.Stat(path); err == nil {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(path, []byte(defaultConfigContent), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func loadConfig(path string) (config, error) {
 	var cfg config
 	data, err := os.ReadFile(path)

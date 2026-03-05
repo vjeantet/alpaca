@@ -77,6 +77,10 @@ func main() {
 			cfgPath = p
 		}
 	}
+	cfgCreated, cfgCreateErr := false, error(nil)
+	if *configPath == "" && cfgPath != "" {
+		cfgCreated, cfgCreateErr = createDefaultConfig(cfgPath)
+	}
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
 		log.Fatal(err)
@@ -86,6 +90,11 @@ func main() {
 
 	if *quiet {
 		log.SetOutput(io.Discard)
+	}
+	if cfgCreateErr != nil {
+		log.Printf("Warning: could not create default config file: %v", cfgCreateErr)
+	} else if cfgCreated {
+		log.Printf("Created default configuration file at %s", cfgPath)
 	}
 	logConfigSources(cfg, explicit, cfgPath)
 

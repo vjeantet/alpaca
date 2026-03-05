@@ -228,3 +228,48 @@ func TestDefaultConfigPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, strings.HasSuffix(path, filepath.Join(".config", "alpaca", "config.yaml")))
 }
+
+func TestCreateDefaultConfig_CreatesFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	created, err := createDefaultConfig(path)
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, defaultConfigContent, string(data))
+}
+
+func TestCreateDefaultConfig_SkipsIfExists(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	existing := "port: 9090\n"
+	require.NoError(t, os.WriteFile(path, []byte(existing), 0o644))
+
+	created, err := createDefaultConfig(path)
+	require.NoError(t, err)
+	assert.False(t, created)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, existing, string(data), "existing file should not be overwritten")
+}
+
+func TestCreateDefaultConfig_CreatesParentDirs(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "deep", "nested", "config.yaml")
+
+	created, err := createDefaultConfig(path)
+	require.NoError(t, err)
+	assert.True(t, created)
+
+	info, err := os.Stat(filepath.Join(dir, "deep", "nested"))
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, defaultConfigContent, string(data))
+}
