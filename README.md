@@ -57,7 +57,8 @@ Start Alpaca by running the `alpaca` binary.
 
 If the proxy server requires valid authentication credentials, you can provide them by means of:
 
-- basic proxy authentication, if `-b login:password` is passed,
+- basic proxy authentication via the system keychain (see [Credential Management](#credential-management) below),
+- basic proxy authentication via `-b login:password` (single credential for all proxies),
 - the shell prompt (for NTLM), if `-d` is passed,
 - the shell environment (for NTLM), if `NTLM_CREDENTIALS` is set,
 - the system keyring (macOS, Windows and Linux/GNOME supported), if none of the above applies.
@@ -68,10 +69,44 @@ tries each method in order (Kerberos, Basic, NTLM) and caches which method works
 Otherwise, the authentication with proxy will be simply ignored.
 
 
-### Run with Kerberos and a local proxy pac 
+### Run with Kerberos and a local proxy pac
 ```sh
 $ alpaca -C file:///Users/xxxxx/proxy.pac -l 127.0.0.1 -p 9999 -k -w 300 -b uid:passwd -q
 ```
+
+### Credential Management
+
+Alpaca can store basic auth credentials in the system keychain (macOS Keychain, GNOME Keyring, Windows Credential Manager), with each credential optionally associated to a specific proxy or glob pattern.
+
+```sh
+# Add a default credential (used when no specific match)
+$ alpaca credential add -u mylogin
+Password (for mylogin):
+
+# Add a credential for a specific proxy
+$ alpaca credential add proxy.corp.com -u admin
+Password (for admin):
+
+# Add a credential for a glob pattern
+$ alpaca credential add "*.corp.com" -u user2
+Password (for user2):
+
+# List stored credentials (passwords are never shown)
+$ alpaca credential list
+PROXY                          LOGIN
+proxy.corp.com                 admin
+*.corp.com                     user2
+(default)                      mylogin
+
+# Remove a credential
+$ alpaca credential remove proxy.corp.com
+```
+
+When authenticating, Alpaca resolves the credential to use in this order: exact hostname match, glob pattern match (most specific wins), `-b` flag value, default keychain entry (`*`).
+
+The `-b` flag coexists with keychain credentials: a keychain exact/glob match always takes priority over `-b`, but `-b` takes priority over the default keychain entry.
+
+For more details, see [docs/credential-management.md](docs/credential-management.md).
 
 ### Shell Prompt
 

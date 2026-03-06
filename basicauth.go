@@ -17,19 +17,30 @@ package main
 import (
 	"encoding/base64"
 	"net/http"
+	"net/url"
 )
 
 type basicAuthenticator struct {
-	encoded string
+	store *basicCredentialStore
 }
 
-func newBasicAuthenticator(credentials string) *basicAuthenticator {
-	return &basicAuthenticator{
-		encoded: base64.StdEncoding.EncodeToString([]byte(credentials)),
+func newBasicAuthenticator(store *basicCredentialStore) *basicAuthenticator {
+	if store == nil {
+		return nil
 	}
+	return &basicAuthenticator{store: store}
 }
 
 func (b *basicAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.Response, error) {
-	req.Header.Set("Proxy-Authorization", "Basic "+b.encoded)
+	proxyHost := ""
+	if v := req.Context().Value(contextKeyProxy); v != nil {
+		proxyHost = v.(*url.URL).Hostname()
+	}
+	creds := b.store.resolve(proxyHost)
+	if creds == "" {
+		return rt.RoundTrip(req)
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(creds))
+	req.Header.Set("Proxy-Authorization", "Basic "+encoded)
 	return rt.RoundTrip(req)
 }

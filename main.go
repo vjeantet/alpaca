@@ -54,6 +54,11 @@ func (s *stringArrayFlag) Set(value string) error {
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
 
+	// Dispatch credential subcommand before flag parsing.
+	if len(os.Args) > 1 && os.Args[1] == "credential" {
+		os.Exit(runCredentialCommand(os.Args[2:]))
+	}
+
 	var hosts stringArrayFlag
 	flag.Var(&hosts, "l", "address to listen on")
 	port := flag.Int("p", 8079, "port number to listen on")
@@ -108,13 +113,19 @@ func main() {
 		os.Exit(0)
 	}
 
-	var basicAuth *basicAuthenticator
 	var a *authenticator
 
-	if *basicCreds != "" {
-		basicAuth = newBasicAuthenticator(*basicCreds)
+	ks := newBasicKeystore()
+	var bcs *basicCredentialStore
+	entries, listErr := ks.list()
+	if listErr != nil {
+		log.Printf("Warning: could not list keychain credentials: %v", listErr)
+	}
+	if *basicCreds != "" || len(entries) > 0 {
+		bcs = &basicCredentialStore{flagCreds: *basicCreds, store: ks}
 		log.Println("Basic proxy authentication configured")
 	}
+	basicAuth := newBasicAuthenticator(bcs)
 
 	// NTLM credential sources
 	var src credentialSource
