@@ -88,7 +88,7 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 		}
 		// 407 — this method was rejected, try the next one.
 		if i < len(m.methods)-1 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		} else {
 			// Last method also failed, return the 407 as-is.
 			return resp, nil

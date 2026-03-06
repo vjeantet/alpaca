@@ -35,14 +35,14 @@ func TestTransport(t *testing.T) {
 	defer server.Close()
 	var tr transport
 	require.NoError(t, tr.dial(&url.URL{Host: server.Listener.Addr().String()}))
-	defer tr.Close()
+	defer func() { _ = tr.Close() }()
 	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
 	t.Run("RoundTrip", func(t *testing.T) {
 		resp, err := tr.RoundTrip(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
@@ -51,11 +51,11 @@ func TestTransport(t *testing.T) {
 
 	t.Run("Hijack", func(t *testing.T) {
 		conn := tr.hijack()
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		require.NoError(t, req.Write(conn))
 		resp, err := http.ReadResponse(bufio.NewReader(conn), req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)

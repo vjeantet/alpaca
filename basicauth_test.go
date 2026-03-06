@@ -36,7 +36,7 @@ func (f *fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 
 func TestBasicAuthSetsHeader(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "admin:secret")
+	_ = ks.set("proxy.corp.com", "admin:secret")
 	store := &basicCredentialStore{store: ks}
 	auth := newBasicAuthenticator(store)
 
@@ -72,7 +72,7 @@ func TestBasicAuthNoHeaderWhenNoCredential(t *testing.T) {
 
 func TestBasicAuthNoProxyContext(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*", "default:pass")
+	_ = ks.set("*", "default:pass")
 	store := &basicCredentialStore{store: ks}
 	auth := newBasicAuthenticator(store)
 
@@ -109,7 +109,7 @@ func TestBasicAuthWithFlagCreds(t *testing.T) {
 
 func TestBasicAuthGlobMatchedProxy(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*.corp.com", "glob-user:glob-pass")
+	_ = ks.set("*.corp.com", "glob-user:glob-pass")
 	store := &basicCredentialStore{store: ks}
 	auth := newBasicAuthenticator(store)
 
@@ -128,8 +128,8 @@ func TestBasicAuthGlobMatchedProxy(t *testing.T) {
 
 func TestBasicAuthDifferentProxiesDifferentCreds(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy-a.com", "user-a:pass-a")
-	ks.set("proxy-b.com", "user-b:pass-b")
+	_ = ks.set("proxy-a.com", "user-a:pass-a")
+	_ = ks.set("proxy-b.com", "user-b:pass-b")
 	store := &basicCredentialStore{store: ks}
 	auth := newBasicAuthenticator(store)
 

@@ -112,10 +112,10 @@ func credentialList(store basicKeystore, out io.Writer) int {
 		return 1
 	}
 	if len(accounts) == 0 {
-		fmt.Fprintln(out, "No credentials stored.")
+		_, _ = fmt.Fprintln(out, "No credentials stored.")
 		return 0
 	}
-	fmt.Fprintf(out, "%-30s %s\n", "PROXY", "LOGIN")
+	_, _ = fmt.Fprintf(out, "%-30s %s\n", "PROXY", "LOGIN")
 	for _, acct := range accounts {
 		secret, err := store.get(acct)
 		if err != nil {
@@ -125,7 +125,7 @@ func credentialList(store basicKeystore, out io.Writer) int {
 		if idx := strings.IndexByte(secret, ':'); idx >= 0 {
 			login = secret[:idx]
 		}
-		fmt.Fprintf(out, "%-30s %s\n", patternLabel(acct), login)
+		_, _ = fmt.Fprintf(out, "%-30s %s\n", patternLabel(acct), login)
 	}
 	return 0
 }

@@ -119,8 +119,8 @@ func (e *errorKeystore) set(account, secret string) error {
 
 func TestResolveExactMatch(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "admin:secret")
-	ks.set("other.corp.com", "user:pass")
+	_ = ks.set("proxy.corp.com", "admin:secret")
+	_ = ks.set("other.corp.com", "user:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "admin:secret", store.resolve("proxy.corp.com"))
 	assert.Equal(t, "user:pass", store.resolve("other.corp.com"))
@@ -128,7 +128,7 @@ func TestResolveExactMatch(t *testing.T) {
 
 func TestResolveGlobMatch(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*.corp.com", "glob:pass")
+	_ = ks.set("*.corp.com", "glob:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "glob:pass", store.resolve("proxy.corp.com"))
 	assert.Equal(t, "glob:pass", store.resolve("other.corp.com"))
@@ -136,22 +136,22 @@ func TestResolveGlobMatch(t *testing.T) {
 
 func TestResolveGlobMostSpecificWins(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*.com", "broad:pass")
-	ks.set("*.corp.com", "specific:pass")
+	_ = ks.set("*.com", "broad:pass")
+	_ = ks.set("*.corp.com", "specific:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "specific:pass", store.resolve("proxy.corp.com"))
 }
 
 func TestResolveFlagOverDefault(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*", "default:pass")
+	_ = ks.set("*", "default:pass")
 	store := &basicCredentialStore{flagCreds: "flag:pass", store: ks}
 	assert.Equal(t, "flag:pass", store.resolve("unknown.host"))
 }
 
 func TestResolveDefaultKeychain(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*", "default:pass")
+	_ = ks.set("*", "default:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "default:pass", store.resolve("unknown.host"))
 }
@@ -164,8 +164,8 @@ func TestResolveNoCredential(t *testing.T) {
 
 func TestResolveExactOverGlob(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "exact:pass")
-	ks.set("*.corp.com", "glob:pass")
+	_ = ks.set("proxy.corp.com", "exact:pass")
+	_ = ks.set("*.corp.com", "glob:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "exact:pass", store.resolve("proxy.corp.com"))
 }
@@ -177,8 +177,8 @@ func TestResolveNilStore(t *testing.T) {
 
 func TestResolveEmptyProxyHost(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "exact:pass")
-	ks.set("*", "default:pass")
+	_ = ks.set("proxy.corp.com", "exact:pass")
+	_ = ks.set("*", "default:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "default:pass", store.resolve(""))
 }
@@ -193,7 +193,7 @@ func TestResolveFlagWithNoKeychainEntries(t *testing.T) {
 
 func TestResolveCacheHit(t *testing.T) {
 	ks := newCountingKeystore()
-	ks.set("proxy.corp.com", "admin:secret")
+	_ = ks.set("proxy.corp.com", "admin:secret")
 	store := &basicCredentialStore{store: ks}
 
 	assert.Equal(t, "admin:secret", store.resolve("proxy.corp.com"))
@@ -208,8 +208,8 @@ func TestResolveCacheHit(t *testing.T) {
 
 func TestResolveCachePerHost(t *testing.T) {
 	ks := newCountingKeystore()
-	ks.set("proxy-a.com", "a:pass")
-	ks.set("proxy-b.com", "b:pass")
+	_ = ks.set("proxy-a.com", "a:pass")
+	_ = ks.set("proxy-b.com", "b:pass")
 	store := &basicCredentialStore{store: ks}
 
 	assert.Equal(t, "a:pass", store.resolve("proxy-a.com"))
@@ -224,8 +224,8 @@ func TestResolveCachePerHost(t *testing.T) {
 
 func TestResolveListCalledOnce(t *testing.T) {
 	ks := newCountingKeystore()
-	ks.set("a.com", "a:pass")
-	ks.set("b.com", "b:pass")
+	_ = ks.set("a.com", "a:pass")
+	_ = ks.set("b.com", "b:pass")
 	store := &basicCredentialStore{store: ks}
 
 	store.resolve("a.com")
@@ -236,9 +236,9 @@ func TestResolveListCalledOnce(t *testing.T) {
 
 func TestResolveConcurrent(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "admin:secret")
-	ks.set("*.corp.com", "glob:pass")
-	ks.set("*", "default:pass")
+	_ = ks.set("proxy.corp.com", "admin:secret")
+	_ = ks.set("*.corp.com", "glob:pass")
+	_ = ks.set("*", "default:pass")
 	store := &basicCredentialStore{store: ks}
 
 	var wg sync.WaitGroup
@@ -260,14 +260,14 @@ func TestResolveConcurrent(t *testing.T) {
 
 func TestResolveIgnoresKeychainChangesAfterLoad(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "original:pass")
+	_ = ks.set("proxy.corp.com", "original:pass")
 	store := &basicCredentialStore{store: ks}
 
 	assert.Equal(t, "original:pass", store.resolve("proxy.corp.com"))
 
 	// Simulate another process modifying the keychain
-	ks.set("proxy.corp.com", "updated:pass")
-	ks.set("new.proxy.com", "new:pass")
+	_ = ks.set("proxy.corp.com", "updated:pass")
+	_ = ks.set("new.proxy.com", "new:pass")
 
 	// Cached value returned, keychain mutation ignored
 	assert.Equal(t, "original:pass", store.resolve("proxy.corp.com"))
@@ -297,8 +297,8 @@ func TestResolveListErrorNoFlag(t *testing.T) {
 
 func TestResolveInvalidGlobSkipped(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("[invalid", "bad:pass")
-	ks.set("proxy.corp.com", "good:pass")
+	_ = ks.set("[invalid", "bad:pass")
+	_ = ks.set("proxy.corp.com", "good:pass")
 	store := &basicCredentialStore{store: ks}
 	assert.Equal(t, "good:pass", store.resolve("proxy.corp.com"))
 	// Invalid glob never matches anything
@@ -307,8 +307,8 @@ func TestResolveInvalidGlobSkipped(t *testing.T) {
 
 func TestResolveGlobNoMatchFallsToDefault(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*.corp.com", "glob:pass")
-	ks.set("*", "default:pass")
+	_ = ks.set("*.corp.com", "glob:pass")
+	_ = ks.set("*", "default:pass")
 	store := &basicCredentialStore{store: ks}
 	// Glob doesn't match external.com, falls to default
 	assert.Equal(t, "default:pass", store.resolve("external.com"))
@@ -316,8 +316,8 @@ func TestResolveGlobNoMatchFallsToDefault(t *testing.T) {
 
 func TestResolveMultipleGlobsSameLengthNoError(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*.aaa.com", "aaa:pass")
-	ks.set("*.bbb.com", "bbb:pass")
+	_ = ks.set("*.aaa.com", "aaa:pass")
+	_ = ks.set("*.bbb.com", "bbb:pass")
 	store := &basicCredentialStore{store: ks}
 	// Each glob only matches its own domain
 	assert.Equal(t, "aaa:pass", store.resolve("proxy.aaa.com"))

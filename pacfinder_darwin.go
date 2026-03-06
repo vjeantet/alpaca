@@ -70,7 +70,7 @@ func (finder *pacFinder) findPACURL() (string, error) {
 	kSCPropNetProxiesProxyAutoConfigEnable := CFStringCreateWithCString("ProxyAutoConfigEnable")
 	kSCPropNetProxiesProxyAutoConfigURLString := CFStringCreateWithCString("ProxyAutoConfigURLString")
 
-	pacEnabled := C.CFNumberRef(C.CFDictionaryGetValue(proxySettings, unsafe.Pointer(kSCPropNetProxiesProxyAutoConfigEnable)))
+	pacEnabled := C.CFNumberRef(C.CFDictionaryGetValue(proxySettings, unsafe.Pointer(kSCPropNetProxiesProxyAutoConfigEnable))) //nolint:govet // CGO interop requires unsafe.Pointer cast
 	if pacEnabled == 0 {
 		// log.Printf("PAC enable flag not found in proxy settings using SCDynamicStoreCopyProxies")
 		return "", nil
@@ -87,7 +87,7 @@ func (finder *pacFinder) findPACURL() (string, error) {
 		return "", nil
 	}
 
-	pacURL := C.CFStringRef(C.CFDictionaryGetValue(proxySettings, unsafe.Pointer(kSCPropNetProxiesProxyAutoConfigURLString)))
+	pacURL := C.CFStringRef(C.CFDictionaryGetValue(proxySettings, unsafe.Pointer(kSCPropNetProxiesProxyAutoConfigURLString))) //nolint:govet // CGO interop requires unsafe.Pointer cast
 	if pacURL == 0 {
 		// log.Printf("PAC URL not found in proxy settings using SCDynamicStoreCopyProxies")
 		return "", nil

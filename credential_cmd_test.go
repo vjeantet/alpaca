@@ -70,7 +70,7 @@ func TestCredentialAddLoginWithColon(t *testing.T) {
 
 func TestCredentialRemoveExisting(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "admin:pass")
+	_ = ks.set("proxy.corp.com", "admin:pass")
 	code := credentialRemove(ks, []string{"proxy.corp.com"})
 	assert.Equal(t, 0, code)
 	_, err := ks.get("proxy.corp.com")
@@ -79,7 +79,7 @@ func TestCredentialRemoveExisting(t *testing.T) {
 
 func TestCredentialRemoveDefault(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("*", "default:pass")
+	_ = ks.set("*", "default:pass")
 	code := credentialRemove(ks, []string{})
 	assert.Equal(t, 0, code)
 	_, err := ks.get("*")
@@ -102,8 +102,8 @@ func TestCredentialListEmpty(t *testing.T) {
 
 func TestCredentialListWithEntries(t *testing.T) {
 	ks := newMockBasicKeystore()
-	ks.set("proxy.corp.com", "admin:pass")
-	ks.set("*", "default:pass")
+	_ = ks.set("proxy.corp.com", "admin:pass")
+	_ = ks.set("*", "default:pass")
 	var buf bytes.Buffer
 	code := credentialList(ks, &buf)
 	assert.Equal(t, 0, code)
@@ -172,7 +172,7 @@ func TestCredentialListSkipsGetErrors(t *testing.T) {
 		mockBasicKeystore: newMockBasicKeystore(),
 		getErr:            fmt.Errorf("access denied"),
 	}
-	ks.mockBasicKeystore.set("proxy.com", "admin:pass")
+	_ = ks.mockBasicKeystore.set("proxy.com", "admin:pass")
 	var buf bytes.Buffer
 	code := credentialList(ks, &buf)
 	assert.Equal(t, 0, code)

@@ -151,11 +151,11 @@ func TestMultiAuthCachePerProxy(t *testing.T) {
 	auth := newMultiAuthenticator(first, second)
 	rt := &fakeRoundTripper{}
 
-	auth.do(reqWithProxy("proxy-a.com"), rt)
+	_, _ = auth.do(reqWithProxy("proxy-a.com"), rt)
 	assert.Equal(t, 1, first.calls)
 
 	// Different proxy triggers a fresh walk through the method chain
-	auth.do(reqWithProxy("proxy-b.com"), rt)
+	_, _ = auth.do(reqWithProxy("proxy-b.com"), rt)
 	assert.Equal(t, 2, first.calls)
 }
 
@@ -166,10 +166,10 @@ func TestMultiAuthNoProxyContextNoCache(t *testing.T) {
 	rt := &fakeRoundTripper{}
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	auth.do(req, rt)
+	_, _ = auth.do(req, rt)
 
 	req, _ = http.NewRequest("GET", "http://example.com", nil)
-	auth.do(req, rt)
+	_, _ = auth.do(req, rt)
 
 	// Without proxy context, no caching happens - all methods retried
 	assert.Equal(t, 2, first.calls)
@@ -209,7 +209,7 @@ func TestMultiAuthNon407NonOKIsCachedToo(t *testing.T) {
 	assert.Equal(t, 0, second.calls, "second should not be tried when first returns non-407")
 
 	// Cached: first method used again
-	resp, err = auth.do(reqWithProxy("proxy.com"), rt)
+	_, err = auth.do(reqWithProxy("proxy.com"), rt)
 	require.NoError(t, err)
 	assert.Equal(t, 2, first.calls)
 	assert.Equal(t, 0, second.calls)

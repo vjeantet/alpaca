@@ -76,7 +76,7 @@ func (k *keyring) getCredentials() (*authenticator, error) {
 	}
 	substrs := strings.Split(userPrincipal, "@")
 	if len(substrs) != 2 {
-		return nil, errors.New("Couldn't retrieve AD domain and username from NoMAD.")
+		return nil, errors.New("couldn't retrieve AD domain and username from NoMAD")
 	}
 	user, domain := substrs[0], substrs[1]
 	hash := ntlmssp.GetNtlmHash(k.readPasswordFromKeychain(userPrincipal))
