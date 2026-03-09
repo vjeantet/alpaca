@@ -144,6 +144,20 @@ build_binaries() {
         go build -v -ldflags "${ldflags}" \
         -o "${BUILD_DIR}/alpaca_${VERSION}_darwin-amd64" .
     success "Built alpaca_${VERSION}_darwin-amd64"
+
+    local ldflags_dev="${ldflags} -X 'main.DevMode=true'"
+
+    info "Building darwin/arm64 (dev)..."
+    CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+        go build -v -ldflags "${ldflags_dev}" \
+        -o "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" .
+    success "Built alpaca_${VERSION}-dev_darwin-arm64"
+
+    info "Building darwin/amd64 (dev)..."
+    CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
+        go build -v -ldflags "${ldflags_dev}" \
+        -o "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-amd64" .
+    success "Built alpaca_${VERSION}-dev_darwin-amd64"
 }
 
 # ---------------------------------------------------------------------------
@@ -168,6 +182,8 @@ tag_and_release() {
     if ! gh release create "${VERSION}" \
         "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" \
         "${BUILD_DIR}/alpaca_${VERSION}_darwin-amd64" \
+        "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" \
+        "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-amd64" \
         --repo "${GITHUB_REPO}" \
         --title "Release ${VERSION}" \
         --generate-notes; then
@@ -187,12 +203,16 @@ update_homebrew_formula() {
     info "Updating Homebrew formula..."
 
     local version_no_v="${VERSION#v}"
-    local sha_arm64 sha_amd64
+    local sha_arm64 sha_amd64 sha_dev_arm64 sha_dev_amd64
     sha_arm64="$(shasum -a 256 "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" | awk '{print $1}')"
     sha_amd64="$(shasum -a 256 "${BUILD_DIR}/alpaca_${VERSION}_darwin-amd64" | awk '{print $1}')"
+    sha_dev_arm64="$(shasum -a 256 "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" | awk '{print $1}')"
+    sha_dev_amd64="$(shasum -a 256 "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-amd64" | awk '{print $1}')"
 
     info "SHA256 arm64: ${sha_arm64}"
     info "SHA256 amd64: ${sha_amd64}"
+    info "SHA256 dev arm64: ${sha_dev_arm64}"
+    info "SHA256 dev amd64: ${sha_dev_amd64}"
 
     mkdir -p "${HOMEBREW_TAP_DIR}/Formula"
 
@@ -205,13 +225,23 @@ class AlpacaProxy < Formula
   depends_on :macos
 
   on_arm do
-    url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}_darwin-arm64"
-    sha256 "${sha_arm64}"
+    if ENV["ALPACA_DEV"]
+      url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}-dev_darwin-arm64"
+      sha256 "${sha_dev_arm64}"
+    else
+      url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}_darwin-arm64"
+      sha256 "${sha_arm64}"
+    end
   end
 
   on_intel do
-    url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}_darwin-amd64"
-    sha256 "${sha_amd64}"
+    if ENV["ALPACA_DEV"]
+      url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}-dev_darwin-amd64"
+      sha256 "${sha_dev_amd64}"
+    else
+      url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}_darwin-amd64"
+      sha256 "${sha_amd64}"
+    end
   end
 
   def install
