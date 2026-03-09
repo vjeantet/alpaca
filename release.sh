@@ -8,6 +8,7 @@ GITHUB_REPO="vjeantet/alpaca"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMEBREW_TAP_DIR="${HOMEBREW_TAP_DIR:-$(cd "${SCRIPT_DIR}/../homebrew-tap" 2>/dev/null && pwd || echo "")}"
 BUILD_DIR=""
+GO_VERSION="1.25.0"
 
 # ---------------------------------------------------------------------------
 # Utilities
@@ -77,6 +78,22 @@ preflight_checks() {
         info "golangci-lint not found, skipping lint (warning)."
     fi
 
+    # Go version
+    if ! command -v "go${GO_VERSION}" &>/dev/null; then
+        error "go${GO_VERSION} is not installed. Install it: go install golang.org/dl/go${GO_VERSION}@latest && go${GO_VERSION} download"
+        exit 1
+    fi
+    export GOROOT="$("go${GO_VERSION}" env GOROOT)"
+    export PATH="${GOROOT}/bin:${PATH}"
+    success "Using Go $(go version | awk '{print $3}')"
+
+    # garble
+    if ! command -v garble &>/dev/null; then
+        error "garble is not installed. Install it: go install mvdan.cc/garble@v0.15.0"
+        exit 1
+    fi
+    success "garble found: $(garble version 2>/dev/null | head -1)"
+
     # gh CLI
     if ! command -v gh &>/dev/null; then
         error "gh CLI is not installed. Install it: https://cli.github.com/"
@@ -135,13 +152,13 @@ build_binaries() {
 
     info "Building darwin/arm64..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-        go build -v -ldflags "${ldflags}" \
+        garble -tiny -literals build -ldflags "${ldflags}" \
         -o "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" .
     success "Built alpaca_${VERSION}_darwin-arm64"
 
     info "Building darwin/amd64..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
-        go build -v -ldflags "${ldflags}" \
+        garble -tiny -literals build -ldflags "${ldflags}" \
         -o "${BUILD_DIR}/alpaca_${VERSION}_darwin-amd64" .
     success "Built alpaca_${VERSION}_darwin-amd64"
 
@@ -149,13 +166,13 @@ build_binaries() {
 
     info "Building darwin/arm64 (dev)..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-        go build -v -ldflags "${ldflags_dev}" \
+        garble -tiny -literals build -ldflags "${ldflags_dev}" \
         -o "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" .
     success "Built alpaca_${VERSION}-dev_darwin-arm64"
 
     info "Building darwin/amd64 (dev)..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
-        go build -v -ldflags "${ldflags_dev}" \
+        garble -tiny -literals build -ldflags "${ldflags_dev}" \
         -o "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-amd64" .
     success "Built alpaca_${VERSION}-dev_darwin-amd64"
 }
