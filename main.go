@@ -216,6 +216,9 @@ func createServer(
 	// build the handler by wrapping middleware upon middleware
 	var handler http.Handler = mux
 	handler = proxyHandler.WrapHandler(handler)
+	if DevMode == "true" {
+		handler = devModeRule(handler)
+	}
 	if jsonLogs {
 		handler = RequestLoggerJSON(handler)
 	} else {
