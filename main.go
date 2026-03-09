@@ -28,6 +28,7 @@ import (
 )
 
 var BuildVersion string
+var DevMode string
 
 func whoAmI() string {
 	me, err := user.Current()
@@ -109,7 +110,11 @@ func main() {
 	}
 
 	if *version {
-		fmt.Println("Alpaca", BuildVersion)
+		v := "Alpaca " + BuildVersion
+		if DevMode == "true" {
+			v += " (dev)"
+		}
+		fmt.Println(v)
 		os.Exit(0)
 	}
 
