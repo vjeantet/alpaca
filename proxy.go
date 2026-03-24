@@ -156,22 +156,33 @@ func connectViaProxy(req *http.Request, proxy *url.URL, auth proxyAuthenticator)
 		log.Printf("[%d] Error dialling proxy %s: %v", id, proxy.Host, err)
 		return nil, err
 	}
-	resp, err := tr.RoundTrip(req)
-	if err != nil {
-		log.Printf("[%d] Error reading CONNECT response: %v", id, err)
-		return nil, err
-	} else if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
-		log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
-		_ = resp.Body.Close()
-		if err := tr.dial(proxy); err != nil {
-			log.Printf("[%d] Error re-dialling %s: %v", id, proxy.Host, err)
-			return nil, err
-		}
+	var resp *http.Response
+	var err error
+	if pa, ok := auth.(preemptiveAuthenticator); ok && pa.hasAuth(proxy.Hostname()) {
+		// Cache hit — skip the unauthenticated round-trip.
 		resp, err = auth.do(req, &tr)
 		if err != nil {
 			return nil, err
 		}
-		log.Printf("[%d] Got %q response", id, resp.Status)
+		log.Printf("[%d] Got %q response (preemptive auth)", id, resp.Status)
+	} else {
+		resp, err = tr.RoundTrip(req)
+		if err != nil {
+			log.Printf("[%d] Error reading CONNECT response: %v", id, err)
+			return nil, err
+		} else if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
+			log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
+			_ = resp.Body.Close()
+			if err := tr.dial(proxy); err != nil {
+				log.Printf("[%d] Error re-dialling %s: %v", id, proxy.Host, err)
+				return nil, err
+			}
+			resp, err = auth.do(req, &tr)
+			if err != nil {
+				return nil, err
+			}
+			log.Printf("[%d] Got %q response", id, resp.Status)
+		}
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -192,38 +203,51 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 	}
 	rd := bytes.NewReader(buf.Bytes())
 	req.Body = io.NopCloser(rd)
-	resp, err := ph.transport.RoundTrip(req)
-	if err != nil {
-		log.Printf("[%d] Error forwarding request: %v", id, err)
-		w.WriteHeader(http.StatusBadGateway)
-		var oe *net.OpError
-		if errors.As(err, &oe) && oe.Op == "proxyconnect" {
-			proxy, err := ph.transport.Proxy(req)
-			if err != nil {
-				log.Printf("[%d] Proxy connect error to unknown proxy: %v", id, err)
-				return
-			}
-			log.Printf("[%d] Temporarily blocking proxy: %q", id, proxy.Host)
-			ph.block(proxy.Host)
-		}
-		return
-	}
-	if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
-		_ = resp.Body.Close()
-		log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
-		_, err = rd.Seek(0, io.SeekStart)
+	var resp *http.Response
+	var err error
+	if pa, ok := auth.(preemptiveAuthenticator); ok && pa.hasAuth(proxyHostFromReq(req, ph.transport)) {
+		// Cache hit — skip the unauthenticated round-trip.
+		resp, err = auth.do(req, ph.transport)
 		if err != nil {
-			log.Printf("[%d] Error while seeking to start of request body: %v", id, err)
-		} else {
-			req.Body = io.NopCloser(rd)
-			resp, err = auth.do(req, ph.transport)
-			if err != nil {
-				log.Printf("[%d] Error forwarding request (with auth): %v", id, err)
-				w.WriteHeader(http.StatusBadGateway)
-				return
-			}
+			log.Printf("[%d] Error forwarding request (preemptive auth): %v", id, err)
+			w.WriteHeader(http.StatusBadGateway)
+			return
 		}
-		log.Printf("[%d] Got %q response", id, resp.Status)
+		log.Printf("[%d] Got %q response (preemptive auth)", id, resp.Status)
+	} else {
+		resp, err = ph.transport.RoundTrip(req)
+		if err != nil {
+			log.Printf("[%d] Error forwarding request: %v", id, err)
+			w.WriteHeader(http.StatusBadGateway)
+			var oe *net.OpError
+			if errors.As(err, &oe) && oe.Op == "proxyconnect" {
+				proxy, err := ph.transport.Proxy(req)
+				if err != nil {
+					log.Printf("[%d] Proxy connect error to unknown proxy: %v", id, err)
+					return
+				}
+				log.Printf("[%d] Temporarily blocking proxy: %q", id, proxy.Host)
+				ph.block(proxy.Host)
+			}
+			return
+		}
+		if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
+			_ = resp.Body.Close()
+			log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
+			_, err = rd.Seek(0, io.SeekStart)
+			if err != nil {
+				log.Printf("[%d] Error while seeking to start of request body: %v", id, err)
+			} else {
+				req.Body = io.NopCloser(rd)
+				resp, err = auth.do(req, ph.transport)
+				if err != nil {
+					log.Printf("[%d] Error forwarding request (with auth): %v", id, err)
+					w.WriteHeader(http.StatusBadGateway)
+					return
+				}
+			}
+			log.Printf("[%d] Got %q response", id, resp.Status)
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	copyResponseHeaders(w, resp)
@@ -235,6 +259,14 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 		log.Printf("[%d] Error copying response body: %v", id, err)
 		return
 	}
+}
+
+func proxyHostFromReq(req *http.Request, tr *http.Transport) string {
+	proxyURL, err := tr.Proxy(req)
+	if err != nil || proxyURL == nil {
+		return ""
+	}
+	return proxyURL.Hostname()
 }
 
 func deleteConnectionTokens(header http.Header) {

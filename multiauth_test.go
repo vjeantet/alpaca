@@ -71,14 +71,19 @@ func TestNewMultiAuthenticatorAllNil(t *testing.T) {
 func TestNewMultiAuthenticatorSingle(t *testing.T) {
 	a := &staticAuth{status: http.StatusOK}
 	result := newMultiAuthenticator(a)
-	// Single method returned directly, not wrapped in multiAuthenticator
-	assert.Equal(t, a, result)
+	require.NotNil(t, result)
+	ma, isMulti := result.(*multiAuthenticator)
+	assert.True(t, isMulti)
+	assert.Equal(t, []proxyAuthenticator{a}, ma.methods)
 }
 
 func TestNewMultiAuthenticatorSingleSkipsNil(t *testing.T) {
 	a := &staticAuth{status: http.StatusOK}
 	result := newMultiAuthenticator(nil, a, nil)
-	assert.Equal(t, a, result)
+	require.NotNil(t, result)
+	ma, isMulti := result.(*multiAuthenticator)
+	assert.True(t, isMulti)
+	assert.Equal(t, []proxyAuthenticator{a}, ma.methods)
 }
 
 func TestNewMultiAuthenticatorMultiple(t *testing.T) {
