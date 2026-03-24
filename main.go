@@ -27,7 +27,7 @@ import (
 )
 
 var BuildVersion string
-var DevMode string
+
 
 func whoAmI() string {
 	me, err := user.Current()
@@ -93,14 +93,12 @@ func main() {
 	applyConfig(cfg, explicit, &hosts, port, pacurl, domain, username,
 		kerberos, kerberosWait, quiet, logLevel, logFormat)
 
-	// Resolve effective log level: -q forces error, DevMode forces trace
+	// Resolve effective log level: -q forces error
 	// unless -log-level was explicitly set.
 	if *quiet {
 		*logLevel = "error"
 	}
-	if DevMode == "true" && !explicit["log-level"] && !*quiet {
-		*logLevel = "trace"
-	}
+	
 
 	level, err := parseLogLevel(*logLevel)
 	if err != nil {
@@ -123,9 +121,6 @@ func main() {
 
 	if *version {
 		v := "Alpaca " + BuildVersion
-		if DevMode == "true" {
-			v += " (dev)"
-		}
 		fmt.Println(v)
 		os.Exit(0)
 	}
@@ -230,9 +225,7 @@ func createServer(
 	// build the handler by wrapping middleware upon middleware
 	var handler http.Handler = mux
 	handler = proxyHandler.WrapHandler(handler)
-	if DevMode == "true" {
-		handler = devModeRule(handler)
-	}
+	handler = devModeRule(handler)
 	handler = RequestLogger(handler)
 	handler = proxyFinder.WrapHandler(handler)
 	handler = AddContextID(handler)

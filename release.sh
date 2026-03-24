@@ -148,7 +148,7 @@ build_binaries() {
     BUILD_DIR="$(mktemp -d)"
     info "Building binaries in ${BUILD_DIR}..."
 
-    local ldflags="-X 'main.BuildVersion=${VERSION}'"
+    local ldflags="-s -w -X 'main.BuildVersion=${VERSION}'"
 
     info "Building darwin/arm64..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
@@ -160,7 +160,7 @@ build_binaries() {
 
     info "Building darwin/arm64 (dev)..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-        garble -tiny -literals build -ldflags "${ldflags_dev}" \
+        garble -tiny -literals build -ldflags "${ldflags_dev}" -tags trace \
         -o "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" .
     success "Built alpaca_${VERSION}-dev_darwin-arm64"
 }
