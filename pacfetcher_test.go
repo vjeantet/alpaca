@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -127,6 +128,32 @@ func TestPacFromFilesystem(t *testing.T) {
 	pf := newPACFetcher(pacURL.String())
 	pf.monitor = newNetMonitor()
 	assert.Equal(t, content, pf.download())
+	assert.True(t, pf.isConnected())
+}
+
+func TestLocalFileChanged(t *testing.T) {
+	content1 := []byte(`function FindProxyForURL(url, host) { return "DIRECT" }`)
+	content2 := []byte(`function FindProxyForURL(url, host) { return "PROXY proxy:8080" }`)
+	tempdir, err := os.MkdirTemp("", "alpaca")
+	require.NoError(t, err)
+	defer func() { _ = os.RemoveAll(tempdir) }()
+	pacPath := path.Join(tempdir, "test.pac")
+	require.NoError(t, os.WriteFile(pacPath, content1, 0644))
+	pacURL := &url.URL{Scheme: "file", Path: filepath.ToSlash(pacPath)}
+	pf := newPACFetcher(pacURL.String())
+	pf.monitor = &fakeNetMonitor{changed: false}
+	// First download returns the initial content (localFileChanged triggers on first call).
+	assert.Equal(t, content1, pf.download())
+	assert.True(t, pf.isConnected())
+	// Second download without changes returns nil.
+	assert.Nil(t, pf.download())
+	assert.True(t, pf.isConnected())
+	// Modify the file with a future mtime to ensure the change is detected.
+	require.NoError(t, os.WriteFile(pacPath, content2, 0644))
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(pacPath, future, future))
+	// Download should return the new content.
+	assert.Equal(t, content2, pf.download())
 	assert.True(t, pf.isConnected())
 }
 
