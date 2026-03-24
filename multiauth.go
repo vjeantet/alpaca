@@ -22,6 +22,11 @@ import (
 	"sync"
 )
 
+type preemptiveAuthenticator interface {
+	proxyAuthenticator
+	hasAuth(proxyHost string) bool
+}
+
 // multiAuthenticator tries multiple authentication methods in order and caches
 // which method works for each proxy host to avoid redundant retries.
 type multiAuthenticator struct {
@@ -31,8 +36,7 @@ type multiAuthenticator struct {
 }
 
 // newMultiAuthenticator builds a proxyAuthenticator from the given methods,
-// skipping any nil entries. Returns nil if no methods are available, returns
-// the single method directly if only one is provided, or returns a
+// skipping any nil entries. Returns nil if no methods are available, or a
 // multiAuthenticator that tries each method in order with per-proxy caching.
 func newMultiAuthenticator(methods ...proxyAuthenticator) proxyAuthenticator {
 	var filtered []proxyAuthenticator
@@ -41,17 +45,20 @@ func newMultiAuthenticator(methods ...proxyAuthenticator) proxyAuthenticator {
 			filtered = append(filtered, m)
 		}
 	}
-	switch len(filtered) {
-	case 0:
+	if len(filtered) == 0 {
 		return nil
-	case 1:
-		return filtered[0]
-	default:
-		return &multiAuthenticator{
-			methods: filtered,
-			cache:   make(map[string]proxyAuthenticator),
-		}
 	}
+	return &multiAuthenticator{
+		methods: filtered,
+		cache:   make(map[string]proxyAuthenticator),
+	}
+}
+
+func (m *multiAuthenticator) hasAuth(proxyHost string) bool {
+	m.mu.RLock()
+	_, ok := m.cache[proxyHost]
+	m.mu.RUnlock()
+	return ok
 }
 
 func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.Response, error) {
@@ -66,7 +73,19 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 		cached, ok := m.cache[proxyHost]
 		m.mu.RUnlock()
 		if ok {
-			return cached.do(req, rt)
+			resp, err := cached.do(req, rt)
+			if err != nil {
+				return nil, err
+			}
+			if resp.StatusCode != http.StatusProxyAuthRequired {
+				return resp, nil
+			}
+			// Cached method no longer works — evict and fall through to discovery.
+			_ = resp.Body.Close()
+			m.mu.Lock()
+			delete(m.cache, proxyHost)
+			m.mu.Unlock()
+			log.Printf("Evicted stale auth cache for proxy %s", proxyHost)
 		}
 	}
 
