@@ -112,6 +112,8 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 	if err != nil {
 		return nil, err
 	}
+	logger.Log(req.Context(), LevelTrace, "PAC FindProxyForURL result",
+		"url", req.URL, "result", str)
 	var fallback *url.URL
 	for _, elem := range strings.Split(str, ";") {
 		fields := strings.Fields(strings.TrimSpace(elem))
@@ -138,6 +140,8 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 			proxy.Host = net.JoinHostPort(proxy.Host, defaultPort)
 		}
 		if pf.blocked.contains(proxy.Host) {
+			logger.Log(req.Context(), LevelTrace, "Skipping blocked proxy",
+				"proxy", proxy.Host)
 			if fallback == nil {
 				fallback = proxy
 			}
@@ -150,6 +154,8 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 	if fallback != nil {
 		// All the proxies are currently blocked. In this case, we'll temporarily ignore the
 		// blocklist and fall back to the first proxy that we saw (and skipped).
+		logger.Log(req.Context(), LevelTrace, "All proxies blocked, using fallback",
+			"proxy", fallback.Host)
 		return fallback, nil
 	}
 	return nil, errors.New("no proxies available")

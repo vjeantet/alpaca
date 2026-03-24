@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"sort"
 	"strings"
@@ -122,11 +123,15 @@ func (s *basicCredentialStore) resolve(proxyHost string) string {
 }
 
 func (s *basicCredentialStore) doResolve(proxyHost string) string {
+	slog.Default().Log(context.Background(), LevelTrace,
+		"Resolving basic credential", "proxy", proxyHost)
 	if proxyHost != "" {
 		// 1. Exact hostname match
 		for _, acct := range s.exact {
 			if acct == proxyHost {
 				if creds, err := s.store.get(acct); err == nil {
+					slog.Default().Log(context.Background(), LevelTrace,
+						"Credential resolved", "proxy", proxyHost, "source", "exact")
 					return creds
 				}
 			}
@@ -135,6 +140,9 @@ func (s *basicCredentialStore) doResolve(proxyHost string) string {
 		for _, cg := range s.globs {
 			if cg.g.Match(proxyHost) {
 				if creds, err := s.store.get(cg.pattern); err == nil {
+					slog.Default().Log(context.Background(), LevelTrace,
+						"Credential resolved", "proxy", proxyHost, "source", "glob",
+						"pattern", cg.pattern)
 					return creds
 				}
 			}
@@ -143,11 +151,15 @@ func (s *basicCredentialStore) doResolve(proxyHost string) string {
 
 	// 3. -b flag
 	if s.flagCreds != "" {
+		slog.Default().Log(context.Background(), LevelTrace,
+			"Credential resolved", "proxy", proxyHost, "source", "flag")
 		return s.flagCreds
 	}
 
 	// 4. Default keychain entry
 	if creds, err := s.store.get(defaultProxyPattern); err == nil && creds != "" {
+		slog.Default().Log(context.Background(), LevelTrace,
+			"Credential resolved", "proxy", proxyHost, "source", "default")
 		return creds
 	}
 

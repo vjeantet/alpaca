@@ -13,7 +13,7 @@ func devModeRule(next http.Handler) http.Handler {
 			host = h
 		}
 
-		loggerFromContext(req.Context()).Debug("devModeRule", "host", host)
+		loggerFromContext(req.Context()).Log(req.Context(), LevelTrace, "devModeRule", "host", host)
 		next.ServeHTTP(w, req)
 	})
 }

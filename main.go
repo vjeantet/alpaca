@@ -68,7 +68,7 @@ func main() {
 	kerberos := flag.Bool("k", false, "enable Kerberos/Negotiate proxy authentication (macOS only)")
 	kerberosWait := flag.Int("w", 30, "seconds to wait for a Kerberos ticket (macOS only)")
 	quiet := flag.Bool("q", false, "quiet mode, suppress all log output")
-	logLevel := flag.String("log-level", "info", "log level: debug, info, warn, error")
+	logLevel := flag.String("log-level", "info", "log level: trace, debug, info, warn, error")
 	logFormat := flag.String("log-format", "text", "log format: text, json")
 	version := flag.Bool("version", false, "print version number")
 	configPath := flag.String("c", "", "path to YAML config file")
@@ -93,17 +93,17 @@ func main() {
 	applyConfig(cfg, explicit, &hosts, port, pacurl, domain, username,
 		kerberos, kerberosWait, quiet, logLevel, logFormat)
 
-	// Resolve effective log level: -q forces error, DevMode forces debug
+	// Resolve effective log level: -q forces error, DevMode forces trace
 	// unless -log-level was explicitly set.
 	if *quiet {
 		*logLevel = "error"
 	}
 	if DevMode == "true" && !explicit["log-level"] && !*quiet {
-		*logLevel = "debug"
+		*logLevel = "trace"
 	}
 
-	var level slog.Level
-	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
+	level, err := parseLogLevel(*logLevel)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Invalid log level %q: %v\n", *logLevel, err)
 		os.Exit(1)
 	}

@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -151,7 +152,13 @@ func (pf *pacFetcher) localFileChanged() bool {
 func (pf *pacFetcher) download() []byte {
 	// TODO: Combine pacChanged() and findPACURL() as described in
 	// https://github.com/samuong/alpaca/pull/156#issuecomment-3125070335
-	if !pf.monitor.addrsChanged() && !pf.pacFinder.pacChanged() && !pf.localFileChanged() {
+	addrsChanged := pf.monitor.addrsChanged()
+	pacChanged := pf.pacFinder.pacChanged()
+	localChanged := pf.localFileChanged()
+	slog.Default().Log(context.Background(), LevelTrace, "Checking for PAC updates",
+		"addrs_changed", addrsChanged, "pac_changed", pacChanged,
+		"local_file_changed", localChanged)
+	if !addrsChanged && !pacChanged && !localChanged {
 		return nil
 	}
 	pf.connected = false
@@ -195,6 +202,8 @@ func (pf *pacFetcher) download() []byte {
 	var buf bytes.Buffer
 	_, err = io.CopyN(&buf, resp.Body, maxResponseBytes)
 	if err == io.EOF {
+		slog.Default().Log(context.Background(), LevelTrace,
+			"PAC downloaded", "bytes", buf.Len())
 		pf.connected = true
 		return buf.Bytes()
 	} else if err != nil {

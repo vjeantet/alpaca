@@ -18,12 +18,35 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 )
+
+// LevelTrace is a custom log level more verbose than DEBUG.
+const LevelTrace = slog.Level(-8)
 
 const contextKeyLogger = contextKey("logger")
 
+// parseLogLevel parses a level string, extending slog.Level.UnmarshalText
+// with support for the custom "trace" level.
+func parseLogLevel(s string) (slog.Level, error) {
+	if strings.EqualFold(s, "trace") {
+		return LevelTrace, nil
+	}
+	var level slog.Level
+	err := level.UnmarshalText([]byte(s))
+	return level, err
+}
+
 func setupLogger(level slog.Level, jsonFormat bool) {
-	opts := &slog.HandlerOptions{Level: level}
+	replaceAttr := func(groups []string, a slog.Attr) slog.Attr {
+		if a.Key == slog.LevelKey {
+			if lvl, ok := a.Value.Any().(slog.Level); ok && lvl == LevelTrace {
+				a.Value = slog.StringValue("TRACE")
+			}
+		}
+		return a
+	}
+	opts := &slog.HandlerOptions{Level: level, ReplaceAttr: replaceAttr}
 	var handler slog.Handler
 	if jsonFormat {
 		handler = slog.NewJSONHandler(os.Stderr, opts)

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -73,6 +74,8 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 		cached, ok := m.cache[proxyHost]
 		m.mu.RUnlock()
 		if ok {
+			slog.Default().Log(context.Background(), LevelTrace,
+				"Using cached auth method", "proxy", proxyHost)
 			resp, err := cached.do(req, rt)
 			if err != nil {
 				return nil, err
@@ -91,6 +94,8 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 
 	// Try each method in order until one succeeds (non-407 response).
 	for i, method := range m.methods {
+		slog.Default().Log(context.Background(), LevelTrace,
+			"Trying auth method", "index", i, "proxy", proxyHost)
 		resp, err := method.do(req, rt)
 		if err != nil {
 			return nil, err
@@ -105,7 +110,9 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 			}
 			return resp, nil
 		}
-		// 407 — this method was rejected, try the next one.
+		// 407 - this method was rejected, try the next one.
+		slog.Default().Log(context.Background(), LevelTrace,
+			"Auth method rejected (407)", "index", i, "proxy", proxyHost)
 		if i < len(m.methods)-1 {
 			_ = resp.Body.Close()
 		} else {

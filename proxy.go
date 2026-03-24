@@ -78,6 +78,8 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		logger.Error("Error finding proxy for request", "error", err)
 	}
+	logger.Log(req.Context(), LevelTrace, "handleConnect",
+		"host", req.Host, "proxy", proxy)
 	var server net.Conn
 	if proxy == nil {
 		server, err = connectDirect(req)
@@ -130,6 +132,7 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 		logger.Error("Error writing response", "error", err)
 		return
 	}
+	logger.Log(req.Context(), LevelTrace, "CONNECT tunnel established", "host", req.Host)
 	// Kick off goroutines to copy data in each direction. Whichever goroutine finishes first
 	// will close the Reader for the other goroutine, forcing any blocked copy to unblock. This
 	// prevents any goroutine from blocking indefinitely (which will leak a file descriptor).
@@ -139,6 +142,8 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 }
 
 func connectDirect(req *http.Request) (net.Conn, error) {
+	loggerFromContext(req.Context()).Log(req.Context(), LevelTrace,
+		"Dialling host directly", "host", req.Host)
 	server, err := net.Dial("tcp", req.Host)
 	if err != nil {
 		logger := loggerFromContext(req.Context())
@@ -149,6 +154,8 @@ func connectDirect(req *http.Request) (net.Conn, error) {
 
 func connectViaProxy(req *http.Request, proxy *url.URL, auth proxyAuthenticator) (net.Conn, error) {
 	logger := loggerFromContext(req.Context())
+	logger.Log(req.Context(), LevelTrace, "Dialling via proxy",
+		"proxy", proxy.Host, "host", req.Host)
 	var tr transport
 	defer func() { _ = tr.Close() }()
 	if err := tr.dial(proxy); err != nil {
@@ -194,6 +201,8 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 	// Make a copy of the request body, in case we have to replay it (for authentication)
 	var buf bytes.Buffer
 	logger := loggerFromContext(req.Context())
+	logger.Log(req.Context(), LevelTrace, "proxyRequest",
+		"method", req.Method, "url", req.URL, "content_length", req.ContentLength)
 	if n, err := io.Copy(&buf, req.Body); err != nil {
 		logger.Error("Error copying request body",
 			"got", n, "expected", req.ContentLength, "error", err)
@@ -201,6 +210,7 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 		return
 	}
 	rd := bytes.NewReader(buf.Bytes())
+	logger.Log(req.Context(), LevelTrace, "Request body buffered", "bytes", buf.Len())
 	req.Body = io.NopCloser(rd)
 	var resp *http.Response
 	var err error

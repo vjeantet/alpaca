@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"slices"
@@ -57,9 +58,19 @@ func (nm *netMonitorImpl) addrsChanged() bool {
 	if setsAreEqual(set, nm.addrs) && slices.EqualFunc(locals, nm.routes, net.IP.Equal) {
 		return false
 	}
+	slog.Default().Log(context.Background(), LevelTrace,
+		"Network addresses changed", "addrs", addrSetKeys(set))
 	nm.addrs = set
 	nm.routes = locals
 	return true
+}
+
+func addrSetKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func addrSliceToSet(slice []net.Addr) map[string]struct{} {
@@ -110,5 +121,7 @@ func (nm *netMonitorImpl) probeRoute(host string, ipv4only bool) net.IP {
 	if ip := local.IP; ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
 		return nil
 	}
+	slog.Default().Log(context.Background(), LevelTrace, "probeRoute result",
+		"host", host, "local_ip", local.IP)
 	return local.IP
 }
