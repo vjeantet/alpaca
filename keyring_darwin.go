@@ -17,7 +17,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"strings"
 
@@ -80,6 +80,6 @@ func (k *keyring) getCredentials() (*authenticator, error) {
 	}
 	user, domain := substrs[0], substrs[1]
 	hash := ntlmssp.GetNtlmHash(k.readPasswordFromKeychain(userPrincipal))
-	log.Printf("Found NoMAD credentials for %s\\%s in system keychain", domain, user)
+	slog.Info("Found NoMAD credentials in system keychain", "domain", domain, "user", user)
 	return &authenticator{domain, user, hash}, nil
 }

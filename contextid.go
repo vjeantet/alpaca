@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
 )
@@ -30,9 +31,10 @@ const contextKeyID = contextKey("id")
 func AddContextID(next http.Handler) http.Handler {
 	var id uint64
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		ctx := context.WithValue(
-			req.Context(), contextKeyID, atomic.AddUint64(&id, 1),
-		)
+		newID := atomic.AddUint64(&id, 1)
+		ctx := context.WithValue(req.Context(), contextKeyID, newID)
+		reqLogger := slog.Default().With("request_id", newID)
+		ctx = withLogger(ctx, reqLogger)
 		next.ServeHTTP(w, req.WithContext(ctx))
 	})
 }

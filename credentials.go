@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -86,6 +86,6 @@ func (e *envVar) getCredentials() (*authenticator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid hash, please run `alpaca -H`: %w", err)
 	}
-	log.Printf("Found credentials for %s\\%s in environment", domain, username)
+	slog.Info("Found credentials in environment", "domain", domain, "user", username)
 	return &authenticator{domain, username, hash}, nil
 }

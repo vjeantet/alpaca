@@ -16,9 +16,9 @@ package main
 
 import (
 	"io"
-	"log"
+	"log/slog"
 )
 
 func init() {
-	log.SetOutput(io.Discard)
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 }

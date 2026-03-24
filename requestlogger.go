@@ -16,9 +16,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -42,51 +40,22 @@ func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, fmt.Errorf("upstream ResponseWriter does not implement http.Hijacker")
 }
 
-type jsonLogEntry struct {
-	ID          uint64 `json:"id"`
-	Timestamp   string `json:"timestamp"`
-	Status      int    `json:"status"`
-	Method      string `json:"method"`
-	URL         string `json:"url"`
-	ParentProxy string `json:"parent_proxy"`
-}
-
-func RequestLoggerJSON(next http.Handler) http.Handler {
+func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, req)
 		var parentProxy string
 		if value := req.Context().Value(contextKeyProxy); value != nil {
 			parentProxy = value.(*url.URL).Host
 		}
-		var id uint64
-		if value := req.Context().Value(contextKeyID); value != nil {
-			id = value.(uint64)
-		}
-		entry := jsonLogEntry{
-			ID:          id,
-			Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
-			Status:      sw.status,
-			Method:      req.Method,
-			URL:         req.URL.String(),
-			ParentProxy: parentProxy,
-		}
-		if data, err := json.Marshal(entry); err == nil {
-			fmt.Println(string(data))
-		}
-	})
-}
-
-func RequestLogger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(sw, req)
-		log.Printf(
-			"[%v] %d %s %s",
-			req.Context().Value(contextKeyID),
-			sw.status,
-			req.Method,
-			req.URL,
+		logger := loggerFromContext(req.Context())
+		logger.Info("request",
+			"status", sw.status,
+			"method", req.Method,
+			"host", req.URL.Hostname(),
+			"proxy", parentProxy,
+			"duration", time.Since(start),
 		)
 	})
 }

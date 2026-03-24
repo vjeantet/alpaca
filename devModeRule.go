@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net"
 	"net/http"
 )
@@ -14,7 +13,7 @@ func devModeRule(next http.Handler) http.Handler {
 			host = h
 		}
 
-		log.Printf("req.Host: %s", host)
+		loggerFromContext(req.Context()).Debug("devModeRule", "host", host)
 		next.ServeHTTP(w, req)
 	})
 }

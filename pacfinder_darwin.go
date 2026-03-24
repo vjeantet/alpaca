@@ -26,7 +26,7 @@ typedef const CFStringRef CFStringRef_Const;
 */
 import "C"
 import (
-	"log"
+	"log/slog"
 	"unsafe"
 )
 
@@ -41,7 +41,7 @@ func newPacFinder(pacUrl string) *pacFinder {
 	}
 	storeRef := C.SCDynamicStoreCreate_trampoline()
 	if storeRef == 0 {
-		log.Print("Unable to access system network information")
+		slog.Warn("Unable to access system network information")
 		return &pacFinder{"", 0}
 	}
 	return &pacFinder{"", storeRef}
@@ -62,7 +62,7 @@ func (finder *pacFinder) findPACURL() (string, error) {
 
 	proxySettings := C.SCDynamicStoreCopyProxies(finder.storeRef)
 	if proxySettings == 0 {
-		// log.Printf("No proxy settings found using SCDynamicStoreCopyProxies")
+		slog.Debug("No proxy settings found using SCDynamicStoreCopyProxies")
 		return "", nil
 	}
 	defer C.CFRelease(C.CFTypeRef(proxySettings))
@@ -72,24 +72,24 @@ func (finder *pacFinder) findPACURL() (string, error) {
 
 	pacEnabled := C.CFNumberRef(C.CFDictionaryGetValue(proxySettings, unsafe.Pointer(kSCPropNetProxiesProxyAutoConfigEnable))) //nolint:govet // CGO interop requires unsafe.Pointer cast
 	if pacEnabled == 0 {
-		// log.Printf("PAC enable flag not found in proxy settings using SCDynamicStoreCopyProxies")
+		slog.Debug("PAC enable flag not found in proxy settings")
 		return "", nil
 	}
 
 	var enabled C.int
 	if C.CFNumberGetValue(pacEnabled, C.kCFNumberIntType, unsafe.Pointer(&enabled)) == 0 {
-		// log.Printf("Could not retrieve value of PAC enabled flag using SCDynamicStoreCopyProxies")
+		slog.Debug("Could not retrieve value of PAC enabled flag")
 		return "", nil
 	}
 
 	if enabled == 0 {
-		// log.Printf("PAC is not enabled using SCDynamicStoreCopyProxies")
+		slog.Debug("PAC is not enabled")
 		return "", nil
 	}
 
 	pacURL := C.CFStringRef(C.CFDictionaryGetValue(proxySettings, unsafe.Pointer(kSCPropNetProxiesProxyAutoConfigURLString))) //nolint:govet // CGO interop requires unsafe.Pointer cast
 	if pacURL == 0 {
-		// log.Printf("PAC URL not found in proxy settings using SCDynamicStoreCopyProxies")
+		slog.Debug("PAC URL not found in proxy settings")
 		return "", nil
 	}
 

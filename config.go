@@ -18,7 +18,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -34,7 +34,8 @@ type config struct {
 	Kerberos         bool     `yaml:"kerberos"`
 	KerberosWait     int      `yaml:"kerberos-wait"`
 	Quiet            bool     `yaml:"quiet"`
-	JSONLogs         bool     `yaml:"json-logs"`
+	LogLevel         string   `yaml:"log-level"`
+	LogFormat        string   `yaml:"log-format"`
 	Password         string   `yaml:"password"`
 	BasicCredentials string   `yaml:"basic-credentials"`
 }
@@ -76,11 +77,14 @@ const defaultConfigContent = `# Alpaca proxy configuration
 # Seconds to wait for a Kerberos ticket (macOS only, default: 30)
 # kerberos-wait: 30
 
-# Suppress all log output
+# Suppress all log output (alias for log-level: error)
 # quiet: false
 
-# Emit JSON log lines on stdout
-# json-logs: false
+# Log level: debug, info, warn, error (default: info)
+# log-level: info
+
+# Log format: text, json (default: text)
+# log-format: text
 `
 
 func createDefaultConfig(path string) (bool, error) {
@@ -142,7 +146,8 @@ func applyConfig(
 	kerberos *bool,
 	kerberosWait *int,
 	quiet *bool,
-	jsonLogs *bool,
+	logLevel *string,
+	logFormat *string,
 ) {
 	if len(cfg.Listen) > 0 && !explicit["l"] {
 		*hosts = cfg.Listen
@@ -168,8 +173,11 @@ func applyConfig(
 	if cfg.Quiet && !explicit["q"] {
 		*quiet = cfg.Quiet
 	}
-	if cfg.JSONLogs && !explicit["json-logs"] {
-		*jsonLogs = cfg.JSONLogs
+	if cfg.LogLevel != "" && !explicit["log-level"] {
+		*logLevel = cfg.LogLevel
+	}
+	if cfg.LogFormat != "" && !explicit["log-format"] {
+		*logFormat = cfg.LogFormat
 	}
 }
 
@@ -189,7 +197,8 @@ func logConfigSources(cfg config, explicit map[string]bool, configPath string) {
 		{"k", "kerberos", cfg.Kerberos, cfg.Kerberos},
 		{"w", "kerberos-wait", cfg.KerberosWait, cfg.KerberosWait != 0},
 		{"q", "quiet", cfg.Quiet, cfg.Quiet},
-		{"json-logs", "json-logs", cfg.JSONLogs, cfg.JSONLogs},
+		{"log-level", "log-level", cfg.LogLevel, cfg.LogLevel != ""},
+		{"log-format", "log-format", cfg.LogFormat, cfg.LogFormat != ""},
 	}
 	logged := false
 	for _, e := range entries {
@@ -200,9 +209,9 @@ func logConfigSources(cfg config, explicit map[string]bool, configPath string) {
 			continue
 		}
 		if !logged {
-			log.Printf("Loaded config from %s", configPath)
+			slog.Info("Loaded config", "path", configPath)
 			logged = true
 		}
-		log.Printf("  %s = %v (from config file)", e.label, e.value)
+		slog.Info("Config value applied", "key", e.label, "value", e.value)
 	}
 }

@@ -18,8 +18,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -53,8 +52,6 @@ func (s *stringArrayFlag) Set(value string) error {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
-
 	// Dispatch credential subcommand before flag parsing.
 	if len(os.Args) > 1 && os.Args[1] == "credential" {
 		os.Exit(runCredentialCommand(os.Args[2:]))
@@ -71,7 +68,8 @@ func main() {
 	kerberos := flag.Bool("k", false, "enable Kerberos/Negotiate proxy authentication (macOS only)")
 	kerberosWait := flag.Int("w", 30, "seconds to wait for a Kerberos ticket (macOS only)")
 	quiet := flag.Bool("q", false, "quiet mode, suppress all log output")
-	jsonLogs := flag.Bool("json-logs", false, "emit JSON log lines on stdout")
+	logLevel := flag.String("log-level", "info", "log level: debug, info, warn, error")
+	logFormat := flag.String("log-format", "text", "log format: text, json")
 	version := flag.Bool("version", false, "print version number")
 	configPath := flag.String("c", "", "path to YAML config file")
 	flag.Parse()
@@ -89,18 +87,32 @@ func main() {
 	}
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "Fatal: %v\n", err)
+		os.Exit(1)
 	}
 	applyConfig(cfg, explicit, &hosts, port, pacurl, domain, username,
-		kerberos, kerberosWait, quiet, jsonLogs)
+		kerberos, kerberosWait, quiet, logLevel, logFormat)
 
+	// Resolve effective log level: -q forces error, DevMode forces debug
+	// unless -log-level was explicitly set.
 	if *quiet {
-		log.SetOutput(io.Discard)
+		*logLevel = "error"
 	}
+	if DevMode == "true" && !explicit["log-level"] && !*quiet {
+		*logLevel = "debug"
+	}
+
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid log level %q: %v\n", *logLevel, err)
+		os.Exit(1)
+	}
+	setupLogger(level, *logFormat == "json")
+
 	if cfgCreateErr != nil {
-		log.Printf("Warning: could not create default config file: %v", cfgCreateErr)
+		slog.Warn("Could not create default config file", "error", cfgCreateErr)
 	} else if cfgCreated {
-		log.Printf("Created default configuration file at %s", cfgPath)
+		slog.Info("Created default configuration file", "path", cfgPath)
 	}
 	logConfigSources(cfg, explicit, cfgPath)
 
@@ -124,11 +136,11 @@ func main() {
 	var bcs *basicCredentialStore
 	entries, listErr := ks.list()
 	if listErr != nil {
-		log.Printf("Warning: could not list keychain credentials: %v", listErr)
+		slog.Warn("Could not list keychain credentials", "error", listErr)
 	}
 	if *basicCreds != "" || len(entries) > 0 {
 		bcs = &basicCredentialStore{flagCreds: *basicCreds, store: ks}
-		log.Println("Basic proxy authentication configured")
+		slog.Info("Basic proxy authentication configured")
 	}
 	basicAuth := newBasicAuthenticator(bcs)
 
@@ -145,7 +157,7 @@ func main() {
 		var err error
 		a, err = src.getCredentials()
 		if err != nil {
-			log.Printf("Credentials not found, disabling proxy auth: %v", err)
+			slog.Info("Credentials not found, disabling proxy auth", "error", err)
 		}
 	}
 
@@ -159,13 +171,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Build auth chain: Kerberos → Basic → NTLM.
+	// Build auth chain: Kerberos -> Basic -> NTLM.
 	// The multi-authenticator tries each method in order on 407 and caches
 	// which method works for each proxy host.
 	var methods []proxyAuthenticator
 	if *kerberos {
 		if neg := newNegotiateAuthenticator(*kerberosWait); neg != nil {
-			log.Println("Kerberos/Negotiate authentication available")
+			slog.Info("Kerberos/Negotiate authentication available")
 			methods = append(methods, neg)
 		}
 	}
@@ -179,9 +191,10 @@ func main() {
 
 	errch := make(chan error)
 
-	s, err := createServer(*port, *pacurl, auth, *jsonLogs)
+	s, err := createServer(*port, *pacurl, auth)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("Failed to create server", "error", err)
+		os.Exit(1)
 	}
 	for _, host := range hosts {
 		address := net.JoinHostPort(host, strconv.Itoa(*port))
@@ -191,18 +204,19 @@ func main() {
 				if err != nil {
 					errch <- err
 				} else {
-					log.Printf("Listening on %s %s", network, address)
+					slog.Info("Listening", "network", network, "address", address)
 					errch <- s.Serve(l)
 				}
 			}(network)
 		}
 	}
 
-	log.Fatal(<-errch)
+	slog.Error("Server stopped", "error", <-errch)
+	os.Exit(1)
 }
 
 func createServer(
-	port int, pacurl string, auth proxyAuthenticator, jsonLogs bool,
+	port int, pacurl string, auth proxyAuthenticator,
 ) (*http.Server, error) {
 	pacWrapper := NewPACWrapper(PACData{Port: port})
 	proxyFinder, err := NewProxyFinder(pacurl, pacWrapper)
@@ -219,11 +233,7 @@ func createServer(
 	if DevMode == "true" {
 		handler = devModeRule(handler)
 	}
-	if jsonLogs {
-		handler = RequestLoggerJSON(handler)
-	} else {
-		handler = RequestLogger(handler)
-	}
+	handler = RequestLogger(handler)
 	handler = proxyFinder.WrapHandler(handler)
 	handler = AddContextID(handler)
 
@@ -241,7 +251,8 @@ func networks(hostname string) []string {
 	}
 	addrs, err := net.LookupIP(hostname)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("Failed to look up hostname", "host", hostname, "error", err)
+		os.Exit(1)
 	}
 	nets := make([]string, 0, 2)
 	ipv4 := false

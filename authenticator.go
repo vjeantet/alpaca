@@ -18,7 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -36,29 +36,29 @@ func (a authenticator) do(req *http.Request, rt http.RoundTripper) (*http.Respon
 	hostname, _ := os.Hostname() // in case of error, just use the zero value ("") as hostname
 	negotiate, err := ntlmssp.NewNegotiateMessage(a.domain, hostname)
 	if err != nil {
-		log.Printf("Error creating NTLM Type 1 (Negotiate) message: %v", err)
+		slog.Error("Error creating NTLM Type 1 (Negotiate) message", "error", err)
 		return nil, err
 	}
 	req.Header.Set("Proxy-Authorization", "NTLM "+base64.StdEncoding.EncodeToString(negotiate))
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
-		log.Printf("Error sending NTLM Type 1 (Negotiate) request: %v", err)
+		slog.Error("Error sending NTLM Type 1 (Negotiate) request", "error", err)
 		return nil, err
 	} else if resp.StatusCode != http.StatusProxyAuthRequired {
-		log.Printf("Expected response with status 407, got %s", resp.Status)
+		slog.Warn("Expected response with status 407", "got", resp.Status)
 		return resp, nil
 	}
 	_ = resp.Body.Close()
 	challenge, err := base64.StdEncoding.DecodeString(
 		strings.TrimPrefix(resp.Header.Get("Proxy-Authenticate"), "NTLM "))
 	if err != nil {
-		log.Printf("Error decoding NTLM Type 2 (Challenge) message: %v", err)
+		slog.Error("Error decoding NTLM Type 2 (Challenge) message", "error", err)
 		return nil, err
 	}
 	authenticate, err := ntlmssp.ProcessChallengeWithHash(
 		challenge, a.domain, a.username, a.hash)
 	if err != nil {
-		log.Printf("Error processing NTLM Type 2 (Challenge) message: %v", err)
+		slog.Error("Error processing NTLM Type 2 (Challenge) message", "error", err)
 		return nil, err
 	}
 	req.Header.Set("Proxy-Authorization",

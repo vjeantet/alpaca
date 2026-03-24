@@ -119,7 +119,7 @@ import "C"
 import (
 	"encoding/base64"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -134,18 +134,18 @@ type negotiateAuthenticator struct{}
 // Returns nil if no ticket is available.
 func newNegotiateAuthenticator(waitSeconds int) proxyAuthenticator {
 	if checkKerberosTicket() {
-		log.Println("Kerberos ticket found")
+		slog.Info("Kerberos ticket found")
 		return &negotiateAuthenticator{}
 	}
 	if waitSeconds <= 0 {
 		return nil
 	}
-	log.Printf("No Kerberos ticket found, waiting up to %d seconds...", waitSeconds)
+	slog.Info("No Kerberos ticket found, waiting", "timeout_seconds", waitSeconds)
 	if waitForKerberosTicket(waitSeconds) {
-		log.Println("Kerberos ticket found")
+		slog.Info("Kerberos ticket found")
 		return &negotiateAuthenticator{}
 	}
-	log.Println("No Kerberos ticket found after waiting")
+	slog.Warn("No Kerberos ticket found after waiting")
 	return nil
 }
 
@@ -210,7 +210,7 @@ func (n *negotiateAuthenticator) do(req *http.Request, rt http.RoundTripper) (*h
 
 	token, err := generateSPNEGOToken(proxyHost)
 	if err != nil {
-		log.Printf("Error generating SPNEGO token for %s: %v", proxyHost, err)
+		slog.Error("Error generating SPNEGO token", "proxy", proxyHost, "error", err)
 		return nil, err
 	}
 

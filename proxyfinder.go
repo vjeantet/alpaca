@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -61,7 +61,7 @@ func (pf *ProxyFinder) WrapHandler(next http.Handler) http.Handler {
 		pf.checkForUpdates()
 		proxy, err := pf.findProxyForRequest(req)
 		if err != nil {
-			log.Printf("[%d] %v", req.Context().Value(contextKeyID), err)
+			loggerFromContext(req.Context()).Error("Error finding proxy", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -83,14 +83,14 @@ func (pf *ProxyFinder) checkForUpdates() {
 			if !pf.hasValidPAC {
 				pf.wrapper.Wrap(nil)
 			} else {
-				log.Println("PAC server unreachable, using cached PAC")
+				slog.Warn("PAC server unreachable, using cached PAC")
 			}
 		}
 		return
 	}
 	pf.blocked = newBlocklist()
 	if err := pf.runner.Update(pacjs); err != nil {
-		log.Printf("Error running PAC JS: %q", err)
+		slog.Error("Error running PAC JS", "error", err)
 	} else {
 		pf.hasValidPAC = true
 		pf.wrapper.Wrap(pacjs)
@@ -98,14 +98,14 @@ func (pf *ProxyFinder) checkForUpdates() {
 }
 
 func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) {
-	id := req.Context().Value(contextKeyID)
+	logger := loggerFromContext(req.Context())
 	if pf.fetcher == nil {
-		log.Printf(`[%d] %s %s via "DIRECT"`, id, req.Method, req.URL)
+		logger.Debug("Routing via DIRECT (no fetcher)", "method", req.Method, "url", req.URL)
 		return nil, nil
 	}
 	if !pf.fetcher.isConnected() && !pf.hasValidPAC {
-		log.Printf(`[%d] %s %s via "DIRECT" (not connected to PAC server)`,
-			id, req.Method, req.URL)
+		logger.Debug("Routing via DIRECT (not connected to PAC server)",
+			"method", req.Method, "url", req.URL)
 		return nil, nil
 	}
 	str, err := pf.runner.FindProxyForURL(*req.URL)
@@ -120,7 +120,8 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 		if len(fields) == 0 {
 			continue
 		} else if fields[0] == "DIRECT" {
-			log.Printf("[%d] %s %s via %q", id, req.Method, req.URL, elem)
+			logger.Debug("Routing via PAC result",
+				"method", req.Method, "url", req.URL, "via", elem)
 			return nil, nil
 		} else if fields[0] == "PROXY" || fields[0] == "HTTP" {
 			scheme = "http"
@@ -129,7 +130,7 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 			scheme = "https"
 			defaultPort = "443"
 		} else {
-			log.Printf("[%d] Couldn't parse proxy: %q", id, elem)
+			logger.Warn("Couldn't parse proxy", "entry", elem)
 			continue
 		}
 		proxy := &url.URL{Scheme: scheme, Host: fields[1]}
@@ -142,7 +143,8 @@ func (pf *ProxyFinder) findProxyForRequest(req *http.Request) (*url.URL, error) 
 			}
 			continue
 		}
-		log.Printf("[%d] %s %s via %q", id, req.Method, req.URL, elem)
+		logger.Debug("Routing via PAC result",
+			"method", req.Method, "url", req.URL, "via", elem)
 		return proxy, nil
 	}
 	if fallback != nil {

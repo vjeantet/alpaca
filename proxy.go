@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -74,10 +73,10 @@ func (ph ProxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 	// Establish a connection to the server, or an upstream proxy.
-	id := req.Context().Value(contextKeyID)
+	logger := loggerFromContext(req.Context())
 	proxy, err := ph.transport.Proxy(req)
 	if err != nil {
-		log.Printf("[%d] Error finding proxy for request: %v", id, err)
+		logger.Error("Error finding proxy for request", "error", err)
 	}
 	var server net.Conn
 	if proxy == nil {
@@ -86,7 +85,7 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 		server, err = connectViaProxy(req, proxy, ph.auth)
 		var oe *net.OpError
 		if errors.As(err, &oe) && oe.Op == "proxyconnect" {
-			log.Printf("[%d] Temporarily blocking proxy: %q", id, proxy.Host)
+			logger.Warn("Temporarily blocking proxy", "proxy", proxy.Host)
 			ph.block(proxy.Host)
 		}
 	}
@@ -103,13 +102,13 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 	// Take over the connection back to the client by hijacking the ResponseWriter.
 	h, ok := w.(http.Hijacker)
 	if !ok {
-		log.Printf("[%d] Error hijacking response writer", id)
+		logger.Error("Error hijacking response writer")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	client, _, err := h.Hijack()
 	if err != nil {
-		log.Printf("[%d] Error hijacking connection: %v", id, err)
+		logger.Error("Error hijacking connection", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -128,7 +127,7 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 		resp = []byte("HTTP/1.0 200 Connection Established\r\n\r\n")
 	}
 	if _, err := client.Write(resp); err != nil {
-		log.Printf("[%d] Error writing response: %v", id, err)
+		logger.Error("Error writing response", "error", err)
 		return
 	}
 	// Kick off goroutines to copy data in each direction. Whichever goroutine finishes first
@@ -142,51 +141,51 @@ func (ph ProxyHandler) handleConnect(w http.ResponseWriter, req *http.Request) {
 func connectDirect(req *http.Request) (net.Conn, error) {
 	server, err := net.Dial("tcp", req.Host)
 	if err != nil {
-		id := req.Context().Value(contextKeyID)
-		log.Printf("[%d] Error dialling host %s: %v", id, req.Host, err)
+		logger := loggerFromContext(req.Context())
+		logger.Error("Error dialling host", "host", req.Host, "error", err)
 	}
 	return server, err
 }
 
 func connectViaProxy(req *http.Request, proxy *url.URL, auth proxyAuthenticator) (net.Conn, error) {
-	id := req.Context().Value(contextKeyID)
+	logger := loggerFromContext(req.Context())
 	var tr transport
 	defer func() { _ = tr.Close() }()
 	if err := tr.dial(proxy); err != nil {
-		log.Printf("[%d] Error dialling proxy %s: %v", id, proxy.Host, err)
+		logger.Error("Error dialling proxy", "proxy", proxy.Host, "error", err)
 		return nil, err
 	}
 	var resp *http.Response
 	var err error
 	if pa, ok := auth.(preemptiveAuthenticator); ok && pa.hasAuth(proxy.Hostname()) {
-		// Cache hit — skip the unauthenticated round-trip.
+		// Cache hit - skip the unauthenticated round-trip.
 		resp, err = auth.do(req, &tr)
 		if err != nil {
 			return nil, err
 		}
-		log.Printf("[%d] Got %q response (preemptive auth)", id, resp.Status)
+		logger.Debug("Got response (preemptive auth)", "status", resp.Status)
 	} else {
 		resp, err = tr.RoundTrip(req)
 		if err != nil {
-			log.Printf("[%d] Error reading CONNECT response: %v", id, err)
+			logger.Error("Error reading CONNECT response", "error", err)
 			return nil, err
 		} else if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
-			log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
+			logger.Debug("Got response, retrying with auth", "status", resp.Status)
 			_ = resp.Body.Close()
 			if err := tr.dial(proxy); err != nil {
-				log.Printf("[%d] Error re-dialling %s: %v", id, proxy.Host, err)
+				logger.Error("Error re-dialling proxy", "proxy", proxy.Host, "error", err)
 				return nil, err
 			}
 			resp, err = auth.do(req, &tr)
 			if err != nil {
 				return nil, err
 			}
-			log.Printf("[%d] Got %q response", id, resp.Status)
+			logger.Debug("Got response", "status", resp.Status)
 		}
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("[%d] Unexpected response status: %s", id, resp.Status)
+		return nil, fmt.Errorf("unexpected response status: %s", resp.Status)
 	}
 	return tr.hijack(), nil
 }
@@ -194,10 +193,10 @@ func connectViaProxy(req *http.Request, proxy *url.URL, auth proxyAuthenticator)
 func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, auth proxyAuthenticator) {
 	// Make a copy of the request body, in case we have to replay it (for authentication)
 	var buf bytes.Buffer
-	id := req.Context().Value(contextKeyID)
+	logger := loggerFromContext(req.Context())
 	if n, err := io.Copy(&buf, req.Body); err != nil {
-		log.Printf("[%d] Error copying request body (got %d/%d): %v",
-			id, n, req.ContentLength, err)
+		logger.Error("Error copying request body",
+			"got", n, "expected", req.ContentLength, "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -206,47 +205,47 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 	var resp *http.Response
 	var err error
 	if pa, ok := auth.(preemptiveAuthenticator); ok && pa.hasAuth(proxyHostFromReq(req, ph.transport)) {
-		// Cache hit — skip the unauthenticated round-trip.
+		// Cache hit - skip the unauthenticated round-trip.
 		resp, err = auth.do(req, ph.transport)
 		if err != nil {
-			log.Printf("[%d] Error forwarding request (preemptive auth): %v", id, err)
+			logger.Error("Error forwarding request (preemptive auth)", "error", err)
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
-		log.Printf("[%d] Got %q response (preemptive auth)", id, resp.Status)
+		logger.Debug("Got response (preemptive auth)", "status", resp.Status)
 	} else {
 		resp, err = ph.transport.RoundTrip(req)
 		if err != nil {
-			log.Printf("[%d] Error forwarding request: %v", id, err)
+			logger.Error("Error forwarding request", "error", err)
 			w.WriteHeader(http.StatusBadGateway)
 			var oe *net.OpError
 			if errors.As(err, &oe) && oe.Op == "proxyconnect" {
 				proxy, err := ph.transport.Proxy(req)
 				if err != nil {
-					log.Printf("[%d] Proxy connect error to unknown proxy: %v", id, err)
+					logger.Error("Proxy connect error to unknown proxy", "error", err)
 					return
 				}
-				log.Printf("[%d] Temporarily blocking proxy: %q", id, proxy.Host)
+				logger.Warn("Temporarily blocking proxy", "proxy", proxy.Host)
 				ph.block(proxy.Host)
 			}
 			return
 		}
 		if resp.StatusCode == http.StatusProxyAuthRequired && auth != nil {
 			_ = resp.Body.Close()
-			log.Printf("[%d] Got %q response, retrying with auth", id, resp.Status)
+			logger.Debug("Got response, retrying with auth", "status", resp.Status)
 			_, err = rd.Seek(0, io.SeekStart)
 			if err != nil {
-				log.Printf("[%d] Error while seeking to start of request body: %v", id, err)
+				logger.Error("Error while seeking to start of request body", "error", err)
 			} else {
 				req.Body = io.NopCloser(rd)
 				resp, err = auth.do(req, ph.transport)
 				if err != nil {
-					log.Printf("[%d] Error forwarding request (with auth): %v", id, err)
+					logger.Error("Error forwarding request (with auth)", "error", err)
 					w.WriteHeader(http.StatusBadGateway)
 					return
 				}
 			}
-			log.Printf("[%d] Got %q response", id, resp.Status)
+			logger.Debug("Got response", "status", resp.Status)
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -256,7 +255,7 @@ func (ph ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, au
 	if err != nil {
 		// The response status has already been sent, so if copying fails, we can't return
 		// an error status to the client.  Instead, log the error.
-		log.Printf("[%d] Error copying response body: %v", id, err)
+		logger.Error("Error copying response body", "error", err)
 		return
 	}
 }

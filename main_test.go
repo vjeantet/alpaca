@@ -33,7 +33,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
@@ -184,14 +184,13 @@ func TestWithSquid(t *testing.T) {
 	// Alpaca logs to stderr by default; redirect to a buffer and write to
 	// the test log in case it's useful for debugging.
 	var logs bytes.Buffer
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.SetOutput(&logs)
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
 	defer func() { t.Logf("alpaca logs:\n%s", logs.String()) }()
 
 	// Run (most of) Alpaca in a goroutine.
 	port, err := strconv.Atoi(findAvailablePort(t))
 	require.NoError(t, err)
-	alpaca, err := createServer(port, pacServer.URL, nil, false)
+	alpaca, err := createServer(port, pacServer.URL, nil)
 	require.NoError(t, err)
 	go alpaca.ListenAndServe()
 	defer alpaca.Close()

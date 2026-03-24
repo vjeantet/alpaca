@@ -16,7 +16,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -85,7 +85,7 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 			m.mu.Lock()
 			delete(m.cache, proxyHost)
 			m.mu.Unlock()
-			log.Printf("Evicted stale auth cache for proxy %s", proxyHost)
+			slog.Info("Evicted stale auth cache", "proxy", proxyHost)
 		}
 	}
 
@@ -101,7 +101,7 @@ func (m *multiAuthenticator) do(req *http.Request, rt http.RoundTripper) (*http.
 				m.mu.Lock()
 				m.cache[proxyHost] = method
 				m.mu.Unlock()
-				log.Printf("Cached auth method for proxy %s", proxyHost)
+				slog.Debug("Cached auth method", "proxy", proxyHost)
 			}
 			return resp, nil
 		}

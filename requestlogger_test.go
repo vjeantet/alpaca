@@ -16,10 +16,9 @@ package main
 
 import (
 	"bytes"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,32 +29,40 @@ func TestRequestLogger(t *testing.T) {
 	tests := map[string]struct {
 		status  int
 		wrapper func(http.Handler) http.Handler
-		out     string
+		checks  []string
 	}{
-		"No Status":    {0, nil, "[<nil>] 200 GET /"},
-		"Given Status": {http.StatusNotFound, nil, "[<nil>] 404 GET /"},
-		"Context":      {http.StatusOK, AddContextID, "[1] 200 GET /"},
+		"No Status": {0, nil, []string{"status=200", "method=GET"}},
+		"Given Status": {http.StatusNotFound, nil, []string{
+			"status=404", "method=GET",
+		}},
+		"Context": {http.StatusOK, AddContextID, []string{
+			"status=200", "method=GET", "request_id=1",
+		}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			b := &bytes.Buffer{}
-			log.SetOutput(b)
+			var buf bytes.Buffer
+			handler := slog.NewTextHandler(&buf, nil)
+			slog.SetDefault(slog.New(handler))
+
 			hfunc := func(w http.ResponseWriter, req *http.Request) {
 				if tt.status != 0 {
 					w.WriteHeader(tt.status)
 				}
 			}
-			var handler http.Handler = http.HandlerFunc(hfunc)
-			handler = RequestLogger(handler)
+			var h http.Handler = http.HandlerFunc(hfunc)
+			h = RequestLogger(h)
 			if tt.wrapper != nil {
-				handler = tt.wrapper(handler)
+				h = tt.wrapper(h)
 			}
-			server := httptest.NewServer(handler)
+			server := httptest.NewServer(h)
 			defer server.Close()
 			_, err := http.Get(server.URL)
 			require.NoError(t, err)
-			log.SetOutput(os.Stderr)
-			assert.Contains(t, b.String(), tt.out)
+			output := buf.String()
+			for _, check := range tt.checks {
+				assert.Contains(t, output, check)
+			}
 		})
 	}
 }

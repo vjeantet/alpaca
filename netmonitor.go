@@ -15,7 +15,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 )
@@ -38,7 +38,7 @@ func newNetMonitor() *netMonitorImpl {
 func (nm *netMonitorImpl) addrsChanged() bool {
 	addrs, err := nm.getAddrs()
 	if err != nil {
-		log.Printf("Error while getting network interface addresses: %q", err)
+		slog.Error("Error while getting network interface addresses", "error", err)
 		return false
 	}
 	set := addrSliceToSet(addrs)
@@ -103,7 +103,8 @@ func (nm *netMonitorImpl) probeRoute(host string, ipv4only bool) net.IP {
 		// expect this to be a *net.UDPAddr. If this fails, it's a bug
 		// in Alpaca, and hopefully users will report it. But it's not
 		// worth panicking over so we won't end the request here.
-		log.Printf("unexpected: probeRoute host=%q ipv4only=%t: %v", host, ipv4only, err)
+		slog.Warn("Unexpected probeRoute result",
+			"host", host, "ipv4only", ipv4only, "error", err)
 		return nil
 	}
 	if ip := local.IP; ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {

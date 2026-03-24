@@ -19,7 +19,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -54,8 +54,8 @@ type pacFetcher struct {
 func newPACFetcher(pacurl string) *pacFetcher {
 	client := &http.Client{Timeout: 30 * time.Second}
 	if strings.HasPrefix(pacurl, "file:") {
-		log.Print("Warning: When using a local PAC file, the online/offline status can't ",
-			"be determined by the fact that the PAC file is downloaded. Make sure you ",
+		slog.Warn("When using a local PAC file, the online/offline status can't " +
+			"be determined by the fact that the PAC file is downloaded. Make sure you " +
 			"check for proxy connectivity in your PAC file!")
 		if runtime.GOOS == "windows" {
 			client.Transport = http.NewFileTransport(http.Dir("C:"))
@@ -138,7 +138,7 @@ func (pf *pacFetcher) localFileChanged() bool {
 	}
 	info, err := os.Stat(pf.localFilePath)
 	if err != nil {
-		log.Printf("Error checking PAC file: %v", err)
+		slog.Error("Error checking PAC file", "error", err)
 		return false
 	}
 	if info.ModTime().After(pf.localFileMtime) {
@@ -158,19 +158,19 @@ func (pf *pacFetcher) download() []byte {
 
 	pacurl, err := pf.pacFinder.findPACURL()
 	if err != nil {
-		log.Printf("Error while trying to detect PAC URL: %v", err)
+		slog.Error("Error while trying to detect PAC URL", "error", err)
 		return nil
 	} else if pacurl == "" {
-		log.Println("No PAC URL specified or detected; all requests will be made directly")
+		slog.Warn("No PAC URL specified or detected; all requests will be made directly")
 		return nil
 	}
 	pf.pacURLResolved = true
 
-	log.Printf("Attempting to download PAC from %s", pacurl)
+	slog.Info("Attempting to download PAC", "url", pacurl)
 
 	pac, err := decodeDataURL(pacurl)
 	if err != nil {
-		log.Printf("Error downloading PAC file: %v", err)
+		slog.Error("Error downloading PAC file", "error", err)
 		return nil
 	}
 
@@ -183,11 +183,11 @@ func (pf *pacFetcher) download() []byte {
 	if err != nil {
 		// Sometimes, if we try to download too soon after a network change, the PAC
 		// download can fail. See https://github.com/samuong/alpaca/issues/8 for details.
-		log.Printf("Error downloading PAC file, will retry after %v: %q",
-			delayAfterFailedDownload, err)
+		slog.Warn("Error downloading PAC file, will retry",
+			"delay", delayAfterFailedDownload, "error", err)
 		time.Sleep(delayAfterFailedDownload)
 		if resp, err = requireOK(pf.client.Get(pacurl)); err != nil {
-			log.Printf("Error downloading PAC file, giving up: %q", err)
+			slog.Error("Error downloading PAC file, giving up", "error", err)
 			return nil
 		}
 	}
@@ -198,10 +198,10 @@ func (pf *pacFetcher) download() []byte {
 		pf.connected = true
 		return buf.Bytes()
 	} else if err != nil {
-		log.Printf("Error reading PAC JS from response body: %q", err)
+		slog.Error("Error reading PAC JS from response body", "error", err)
 		return nil
 	} else {
-		log.Printf("PAC JS is too big (limit is %d bytes)", maxResponseBytes)
+		slog.Error("PAC JS is too big", "limit", maxResponseBytes)
 		return nil
 	}
 }

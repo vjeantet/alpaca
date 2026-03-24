@@ -44,7 +44,8 @@ username: jdoe
 kerberos: true
 kerberos-wait: 60
 quiet: true
-json-logs: true
+log-level: debug
+log-format: json
 `
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
@@ -58,7 +59,8 @@ json-logs: true
 	assert.True(t, cfg.Kerberos)
 	assert.Equal(t, 60, cfg.KerberosWait)
 	assert.True(t, cfg.Quiet)
-	assert.True(t, cfg.JSONLogs)
+	assert.Equal(t, "debug", cfg.LogLevel)
+	assert.Equal(t, "json", cfg.LogFormat)
 }
 
 func TestLoadConfig_PasswordRejected(t *testing.T) {
@@ -121,7 +123,8 @@ domain: MYDOM
 	assert.False(t, cfg.Kerberos)
 	assert.Equal(t, 0, cfg.KerberosWait)
 	assert.False(t, cfg.Quiet)
-	assert.False(t, cfg.JSONLogs)
+	assert.Empty(t, cfg.LogLevel)
+	assert.Empty(t, cfg.LogFormat)
 }
 
 func TestApplyConfig_CLIWins(t *testing.T) {
@@ -136,10 +139,11 @@ func TestApplyConfig_CLIWins(t *testing.T) {
 	kerberos := false
 	kerberosWait := 30
 	quiet := false
-	jsonLogs := false
+	logLevel := "info"
+	logFormat := "text"
 
 	applyConfig(cfg, explicit, &hosts, &port, &pacurl, &domain, &username,
-		&kerberos, &kerberosWait, &quiet, &jsonLogs)
+		&kerberos, &kerberosWait, &quiet, &logLevel, &logFormat)
 
 	assert.Equal(t, 3128, port, "CLI flag should win over config")
 	assert.Equal(t, "FROMFILE", domain, "config should apply when CLI flag not set")
@@ -154,7 +158,8 @@ func TestApplyConfig_ConfigApplied(t *testing.T) {
 		Kerberos:     true,
 		KerberosWait: 45,
 		Quiet:        true,
-		JSONLogs:     true,
+		LogLevel:     "debug",
+		LogFormat:    "json",
 	}
 	explicit := map[string]bool{}
 
@@ -165,11 +170,12 @@ func TestApplyConfig_ConfigApplied(t *testing.T) {
 	kerberos := false
 	kerberosWait := 30
 	quiet := false
-	jsonLogs := false
+	logLevel := "info"
+	logFormat := "text"
 	hosts := stringArrayFlag{}
 
 	applyConfig(cfg, explicit, &hosts, &port, &pacurl, &domain, &username,
-		&kerberos, &kerberosWait, &quiet, &jsonLogs)
+		&kerberos, &kerberosWait, &quiet, &logLevel, &logFormat)
 
 	assert.Equal(t, 9090, port)
 	assert.Equal(t, "http://pac.example.com", pacurl)
@@ -178,7 +184,8 @@ func TestApplyConfig_ConfigApplied(t *testing.T) {
 	assert.True(t, kerberos)
 	assert.Equal(t, 45, kerberosWait)
 	assert.True(t, quiet)
-	assert.True(t, jsonLogs)
+	assert.Equal(t, "debug", logLevel)
+	assert.Equal(t, "json", logFormat)
 }
 
 func TestApplyConfig_EmptyConfigNoChange(t *testing.T) {
@@ -192,11 +199,12 @@ func TestApplyConfig_EmptyConfigNoChange(t *testing.T) {
 	kerberos := false
 	kerberosWait := 30
 	quiet := false
-	jsonLogs := false
+	logLevel := "info"
+	logFormat := "text"
 	hosts := stringArrayFlag{"localhost"}
 
 	applyConfig(cfg, explicit, &hosts, &port, &pacurl, &domain, &username,
-		&kerberos, &kerberosWait, &quiet, &jsonLogs)
+		&kerberos, &kerberosWait, &quiet, &logLevel, &logFormat)
 
 	assert.Equal(t, 3128, port)
 	assert.Equal(t, "me", username)
@@ -215,10 +223,11 @@ func TestApplyConfig_ListenFromConfig(t *testing.T) {
 	kerberos := false
 	kerberosWait := 30
 	quiet := false
-	jsonLogs := false
+	logLevel := "info"
+	logFormat := "text"
 
 	applyConfig(cfg, explicit, &hosts, &port, &pacurl, &domain, &username,
-		&kerberos, &kerberosWait, &quiet, &jsonLogs)
+		&kerberos, &kerberosWait, &quiet, &logLevel, &logFormat)
 
 	assert.Equal(t, stringArrayFlag{"0.0.0.0", "::1"}, hosts)
 }

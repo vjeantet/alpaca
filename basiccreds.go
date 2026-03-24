@@ -15,7 +15,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -66,7 +66,7 @@ func (s *basicCredentialStore) load() {
 	}
 	accounts, err := s.store.list()
 	if err != nil {
-		log.Printf("Error listing basic credentials: %v", err)
+		slog.Error("Error listing basic credentials", "error", err)
 		return
 	}
 	for _, acct := range accounts {
