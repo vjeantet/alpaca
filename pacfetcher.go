@@ -22,6 +22,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -45,6 +47,8 @@ type pacFetcher struct {
 	client         *http.Client
 	connected      bool
 	pacURLResolved bool
+	localFilePath  string
+	localFileMtime time.Time
 }
 
 func newPACFetcher(pacurl string) *pacFetcher {
@@ -65,11 +69,17 @@ func newPACFetcher(pacurl string) *pacFetcher {
 		// rather than via a proxy.
 		client.Transport = &http.Transport{Proxy: nil}
 	}
-	return &pacFetcher{
+	pf := &pacFetcher{
 		pacFinder: newPacFinder(pacurl),
 		monitor:   newNetMonitor(),
 		client:    client,
 	}
+	if strings.HasPrefix(pacurl, "file:") {
+		if u, err := url.Parse(pacurl); err == nil {
+			pf.localFilePath = filepath.FromSlash(u.Path)
+		}
+	}
+	return pf
 }
 
 func requireOK(resp *http.Response, err error) (*http.Response, error) {
@@ -122,10 +132,26 @@ func decodeDataURL(uri string) ([]byte, error) {
 	return []byte(decoded), nil
 }
 
+func (pf *pacFetcher) localFileChanged() bool {
+	if pf.localFilePath == "" {
+		return false
+	}
+	info, err := os.Stat(pf.localFilePath)
+	if err != nil {
+		log.Printf("Error checking PAC file: %v", err)
+		return false
+	}
+	if info.ModTime().After(pf.localFileMtime) {
+		pf.localFileMtime = info.ModTime()
+		return true
+	}
+	return false
+}
+
 func (pf *pacFetcher) download() []byte {
 	// TODO: Combine pacChanged() and findPACURL() as described in
 	// https://github.com/samuong/alpaca/pull/156#issuecomment-3125070335
-	if !pf.monitor.addrsChanged() && !pf.pacFinder.pacChanged() {
+	if !pf.monitor.addrsChanged() && !pf.pacFinder.pacChanged() && !pf.localFileChanged() {
 		return nil
 	}
 	pf.connected = false
