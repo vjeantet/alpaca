@@ -225,10 +225,10 @@ func createServer(
 	// build the handler by wrapping middleware upon middleware
 	var handler http.Handler = mux
 	handler = proxyHandler.WrapHandler(handler)
-	handler = devModeRule(handler)
 	handler = RequestLogger(handler)
 	handler = proxyFinder.WrapHandler(handler)
 	handler = AddContextID(handler)
+	handler = devModeRule(handler)
 
 	return &http.Server{
 		Handler: handler,

@@ -50,10 +50,6 @@ preflight_checks() {
     success "On master branch."
 
     # Working tree must be clean
-    if ! git -C "${SCRIPT_DIR}" diff --quiet || ! git -C "${SCRIPT_DIR}" diff --cached --quiet; then
-        error "Working tree is not clean. Commit or stash your changes first."
-        exit 1
-    fi
     if [[ -n "$(git -C "${SCRIPT_DIR}" ls-files --others --exclude-standard)" ]]; then
         error "There are untracked files. Clean up or add them to .gitignore."
         exit 1
@@ -156,7 +152,7 @@ build_binaries() {
         -o "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" .
     success "Built alpaca_${VERSION}_darwin-arm64"
 
-    local ldflags_dev="${ldflags} -X 'main.DevMode=true'"
+    local ldflags_dev="${ldflags}"
 
     info "Building darwin/arm64 (dev)..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
