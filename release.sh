@@ -50,6 +50,10 @@ preflight_checks() {
     success "On master branch."
 
     # Working tree must be clean
+    if ! git -C "${SCRIPT_DIR}" diff --quiet || ! git -C "${SCRIPT_DIR}" diff --cached --quiet; then
+        error "Working tree is not clean. Commit or stash your changes first."
+        exit 1
+    fi
     if [[ -n "$(git -C "${SCRIPT_DIR}" ls-files --others --exclude-standard)" ]]; then
         error "There are untracked files. Clean up or add them to .gitignore."
         exit 1
@@ -152,13 +156,6 @@ build_binaries() {
         -o "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" .
     success "Built alpaca_${VERSION}_darwin-arm64"
 
-    local ldflags_dev="${ldflags}"
-
-    info "Building darwin/arm64 (dev)..."
-    CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-        garble -tiny -literals build -ldflags "${ldflags_dev}" -tags trace \
-        -o "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" .
-    success "Built alpaca_${VERSION}-dev_darwin-arm64"
 }
 
 # ---------------------------------------------------------------------------
@@ -182,7 +179,6 @@ tag_and_release() {
     info "Creating GitHub release..."
     if ! gh release create "${VERSION}" \
         "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" \
-        "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" \
         --repo "${GITHUB_REPO}" \
         --title "Release ${VERSION}" \
         --generate-notes; then
@@ -202,13 +198,11 @@ update_homebrew_formula() {
     info "Updating Homebrew formula..."
 
     local version_no_v="${VERSION#v}"
-    local sha_arm64 sha_dev_arm64
+    local sha_arm64 
     sha_arm64="$(shasum -a 256 "${BUILD_DIR}/alpaca_${VERSION}_darwin-arm64" | awk '{print $1}')"
-    sha_dev_arm64="$(shasum -a 256 "${BUILD_DIR}/alpaca_${VERSION}-dev_darwin-arm64" | awk '{print $1}')"
-
+  
     info "SHA256 arm64: ${sha_arm64}"
-    info "SHA256 dev arm64: ${sha_dev_arm64}"
-
+  
     mkdir -p "${HOMEBREW_TAP_DIR}/Formula"
 
     cat > "${HOMEBREW_TAP_DIR}/Formula/alpaca-proxy.rb" <<FORMULA
@@ -219,14 +213,9 @@ class AlpacaProxy < Formula
   license "Apache-2.0"
   depends_on :macos
 
-  if ENV["ALPACA_DEV"]
-    url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}-dev_darwin-arm64"
-    sha256 "${sha_dev_arm64}"
-  else
-    url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}_darwin-arm64"
-    sha256 "${sha_arm64}"
-  end
-
+  url "https://github.com/vjeantet/alpaca/releases/download/${VERSION}/alpaca_${VERSION}_darwin-arm64"
+  sha256 "${sha_arm64}"
+  
   def install
     binary_name = stable.url.split("/").last
     bin.install binary_name => "alpaca"
